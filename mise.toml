@@ -1,0 +1,27 @@
+#:schema https://mise.jdx.dev/schema/mise.json
+
+[plugins]
+fnox-env = "https://github.com/jdx/mise-env-fnox"
+
+[tools]
+node = "24"
+
+[env]
+_.fnox-env = { tools = true }
+
+[tasks.setup]
+description = "Installs dependencies"
+run = "pnpm install"
+
+[tasks.typecheck]
+description = "Runs TypeScript type checking"
+run = "pnpm exec tsc --noEmit"
+
+[tasks.test]
+description = "Runs tests"
+run = "pnpm exec vitest run"
+
+[tasks.up]
+description = "Installs dependencies and starts tests in watch mode"
+depends = ["setup"]
+run = "fnox exec -- pnpm exec vitest"
