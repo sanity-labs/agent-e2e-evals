@@ -5,6 +5,7 @@ fnox-env = "https://github.com/jdx/mise-env-fnox"
 
 [tools]
 node = "24"
+pnpm = "10"
 
 [env]
 _.fnox-env = { tools = true }
