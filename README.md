@@ -60,7 +60,7 @@ pnpm agent-eval playground
 
 Open [http://localhost:3000](http://localhost:3000) to browse results.
 
-## Mise Tasks
+## mise Tasks
 
 | Task                 | Description                                          |
 | -------------------- | ---------------------------------------------------- |
