@@ -26,39 +26,25 @@ Test AI coding agents to measure what actually works.
    fnox export
    ```
 
-## Running Evals
+## Running Experiments
 
-### Preview (no cost)
-
-See what will run without making API calls:
+Each file in `experiments/` defines a configuration for an agent + model combination. Run a specific experiment by name (filename without `.ts`):
 
 ```bash
-pnpm agent-eval cc --dry
+pnpm agent-eval claude-opus-4.6
 ```
 
-### Run Experiments
-
-Run the Claude Code experiment:
+Run all experiments:
 
 ```bash
-pnpm agent-eval cc
+pnpm agent-eval
 ```
 
-Run the Codex experiment:
+Preview what would run without making API calls:
 
 ```bash
-pnpm agent-eval codex
+pnpm agent-eval --dry
 ```
-
-### View Results
-
-Launch the web-based results viewer:
-
-```bash
-pnpm agent-eval playground
-```
-
-Open [http://localhost:3000](http://localhost:3000) to browse results.
 
 ## mise Tasks
 
