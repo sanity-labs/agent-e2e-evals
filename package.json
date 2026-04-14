@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@vercel/agent-eval": "^0.9.5",
     "@types/node": "^22.0.0",
+    "@vercel/agent-eval": "^0.10.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

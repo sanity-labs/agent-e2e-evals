@@ -36,20 +36,7 @@ export const sanityMcpSetup: ExperimentConfig['setup'] = async (sandbox) => {
   await sandbox.runCommand('mkdir', ['-p', '.cursor']);
   await sandbox.writeFiles({ '.cursor/mcp.json': mcpJson });
 
-  // Codex: use inotifywait to append MCP config after the framework
-  // overwrites ~/.codex/config.toml. The watcher runs in the background
-  // and triggers once when the file is written.
-  await sandbox.writeFiles({ '/tmp/sanity-mcp.toml': codexMcpToml });
+  // Codex: ~/.codex/config.toml
   await sandbox.runCommand('mkdir', ['-p', '/root/.codex']);
-
-  // Install inotify-tools and start a background watcher
-  await sandbox.runCommand('sh', ['-c',
-    'apt-get update -qq && apt-get install -y -qq inotify-tools > /dev/null 2>&1'
-  ]);
-  await sandbox.runCommand('sh', ['-c', [
-    'nohup sh -c \'',
-    'inotifywait -e close_write /root/.codex/config.toml 2>/dev/null;',
-    'cat /tmp/sanity-mcp.toml >> /root/.codex/config.toml',
-    '\' > /dev/null 2>&1 &',
-  ].join(' ')]);
+  await sandbox.writeFiles({ '/root/.codex/config.toml': codexMcpToml });
 };
