@@ -6,3 +6,5 @@ dist/
 .DS_Store
 .tmp-vitest-probe-*
 .claude/settings.local.json
+mise.local.toml
+fnox.local.toml

@@ -2,53 +2,55 @@
 
 Test AI coding agents to measure what actually works.
 
+## Prerequisites
+
+- Ensure [mise-config](https://github.com/sanity-io/mise-config) has been set up
+- Install 1Password and get access to the "Dev Secrets" vault
+
 ## Setup
 
-1. **Install dependencies:**
+1. **Install tools and dependencies:**
+
    ```bash
-   npm install
+   mise install
+   mise run setup
    ```
 
-2. **Configure environment variables:**
+2. **Configure secrets:**
+
+   Secrets are managed via [fnox](https://fnox.jdx.dev/) with the 1Password provider. See [`fnox.toml`](fnox.toml) for the full list of secrets.
+
+   Secrets load automatically when you `cd` into the project directory (via the mise + fnox integration). You can verify they're available with:
+
    ```bash
-   cp .env.example .env.local
+   fnox export
    ```
 
-   Edit `.env.local` and add your API keys (see comments in `.env.example` for options):
-   - **Choose ONE agent key**: `AI_GATEWAY_API_KEY` (for Vercel agents), `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`
-   - **Choose ONE sandbox option**: `VERCEL_TOKEN`, `VERCEL_OIDC_TOKEN`, or use Docker (set `sandbox: 'docker'` in config)
+## Running Experiments
 
-## Running Evals
-
-### Preview (no cost)
-
-See what will run without making API calls:
+Each file in `experiments/` defines a configuration for an agent + model combination. Run a specific experiment by name (filename without `.ts`):
 
 ```bash
-npx @vercel/agent-eval cc --dry
+pnpm agent-eval claude-opus-4.6
 ```
 
-### Run Experiments
-
-Run the Claude Code experiment:
+Run all experiments:
 
 ```bash
-npx @vercel/agent-eval cc
+pnpm agent-eval
 ```
 
-Run the Codex experiment:
+Preview what would run without making API calls:
 
 ```bash
-npx @vercel/agent-eval codex
+pnpm agent-eval --dry
 ```
 
-### View Results
+## mise Tasks
 
-Launch the web-based results viewer:
-
-```bash
-npx @vercel/agent-eval playground
-```
-
-Open [http://localhost:3000](http://localhost:3000) to browse results.
-
+| Task                 | Description                                          |
+| -------------------- | ---------------------------------------------------- |
+| `mise run setup`     | Installs dependencies                                |
+| `mise run typecheck` | Runs TypeScript type checking                        |
+| `mise run test`      | Runs tests                                           |
+| `mise run up`        | Installs dependencies and starts tests in watch mode |
