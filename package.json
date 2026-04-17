@@ -5,11 +5,17 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",
     "@vercel/agent-eval": "^0.12.1",
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }
