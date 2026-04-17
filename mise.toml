@@ -1,14 +1,8 @@
 #:schema https://mise.jdx.dev/schema/mise.json
 
-[plugins]
-fnox-env = "https://github.com/jdx/mise-env-fnox"
-
 [tools]
 node = "24"
 pnpm = "10"
-
-[env]
-_.fnox-env = { tools = true }
 
 [tasks.setup]
 description = "Installs dependencies"

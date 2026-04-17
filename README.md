@@ -20,7 +20,7 @@ Test AI coding agents to measure what actually works.
 
    Secrets are managed via [fnox](https://fnox.jdx.dev/) with the 1Password provider. See [`fnox.toml`](fnox.toml) for the full list of secrets.
 
-   Secrets load automatically when you `cd` into the project directory (via the mise + fnox integration). You can verify they're available with:
+   Commands that need secrets are wrapped with `fnox exec` (see `mise run up`). You can verify secrets are accessible with:
 
    ```bash
    fnox export
