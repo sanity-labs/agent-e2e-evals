@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "devDependencies": {
     "@types/node": "^24.12.2",
     "@vercel/agent-eval": "^0.10.0",

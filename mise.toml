@@ -10,11 +10,11 @@ run = "pnpm install"
 
 [tasks.typecheck]
 description = "Runs TypeScript type checking"
-run = "pnpm exec tsc --noEmit"
+run = "node --run typecheck"
 
 [tasks.test]
 description = "Runs tests"
-run = "pnpm exec vitest run"
+run = "node --run test"
 
 [tasks.up]
 description = "Installs dependencies and starts tests in watch mode"
