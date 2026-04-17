@@ -1,16 +1,16 @@
-import { client } from "@/sanity/lib/client"
+import { client } from '@/sanity/lib/client';
 
 const POSTS_QUERY = `*[_type == "post"] | order(publishedAt desc) {
   _id,
   title,
   "slug": slug.current,
   publishedAt
-}`
+}`;
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic';
 
 export default async function PostsPage() {
-  const posts = await client.fetch(POSTS_QUERY)
+  const posts = await client.fetch(POSTS_QUERY);
 
   return (
     <main>
@@ -23,5 +23,5 @@ export default async function PostsPage() {
         ))}
       </ul>
     </main>
-  )
+  );
 }
