@@ -8,3 +8,6 @@ dist/
 .claude/settings.local.json
 mise.local.toml
 fnox.local.toml
+
+results
+.next
