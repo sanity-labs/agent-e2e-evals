@@ -12,7 +12,7 @@
 import { rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { execa } from 'execa';
+import { exec } from 'tinyexec';
 
 const { values, positionals } = parseArgs({
   options: {
@@ -55,9 +55,9 @@ export default config;
 await writeFile(tempPath, fileContents);
 
 try {
-  const result = await execa('pnpm', ['exec', 'agent-eval', tempPath], {
-    stdio: 'inherit',
-    reject: false,
+  const result = await exec('pnpm', ['exec', 'agent-eval', tempPath], {
+    nodeOptions: { stdio: 'inherit' },
+    throwOnError: false,
   });
   process.exitCode = result.exitCode ?? 1;
 } finally {
