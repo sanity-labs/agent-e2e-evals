@@ -7,5 +7,6 @@
   "rules": {},
   "env": {
     "builtin": true
-  }
+  },
+  "ignorePatterns": ["evals/*/**", "!evals/*/EVAL.ts", "!evals/*/EVAL.tsx"]
 }

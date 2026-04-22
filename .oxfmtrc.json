@@ -4,5 +4,6 @@
   "printWidth": 120,
   "sortImports": {
     "newlinesBetween": false
-  }
+  },
+  "ignorePatterns": ["evals/*/**", "!evals/*/EVAL.ts", "!evals/*/EVAL.tsx"]
 }
