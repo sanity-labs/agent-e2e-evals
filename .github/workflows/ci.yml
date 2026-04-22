@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  versions:
+    name: Read tool versions
+    runs-on: ubuntu-latest
+    outputs:
+      node: ${{ steps.read.outputs.node }}
+      pnpm: ${{ steps.read.outputs.pnpm }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: jdx/mise-action@v4
+
+      - id: read
+        run: |
+          echo "node=$(mise tool node --requested)" >> "$GITHUB_OUTPUT"
+          echo "pnpm=$(mise tool pnpm --requested)" >> "$GITHUB_OUTPUT"
+
+  ci:
+    name: Typecheck, lint, format
+    needs: versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: ${{ needs.versions.outputs.pnpm }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ needs.versions.outputs.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Format
+        run: pnpm run format
