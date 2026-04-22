@@ -1,10 +1,12 @@
 import type { SetupFunction } from '@vercel/agent-eval';
 
-// Evals that need a Sanity read token only require it to be set (the build
-// fails at module evaluation if the var is missing). The agents write code but
-// don't actually query Sanity during build, so a placeholder is sufficient.
-const dotEnv = 'SANITY_API_READ_TOKEN=placeholder\n';
-
 export const baseSetup: SetupFunction = async (sandbox) => {
+  const sanityAuthToken = process.env.SANITY_AUTH_TOKEN ?? 'placeholder';
+  const dotEnv = [
+    `SANITY_API_READ_TOKEN=placeholder`,
+    `SANITY_AUTH_TOKEN=${sanityAuthToken}`,
+    `SANITY_INTERNAL_ENV=staging`,
+    '',
+  ].join('\n');
   await sandbox.writeFiles({ '.env': dotEnv });
 };
