@@ -16,6 +16,22 @@ run = "node --run typecheck"
 description = "Runs tests"
 run = "node --run test"
 
+[tasks.lint]
+description = "Runs oxlint"
+run = "node --run lint"
+
+[tasks."lint:fix"]
+description = "Runs oxlint with --fix"
+run = "node --run lint:fix"
+
+[tasks.format]
+description = "Checks formatting with oxfmt"
+run = "node --run format"
+
+[tasks."format:fix"]
+description = "Formats files with oxfmt"
+run = "node --run format:fix"
+
 [tasks.up]
 description = "Installs dependencies and starts tests in watch mode"
 depends = ["setup"]

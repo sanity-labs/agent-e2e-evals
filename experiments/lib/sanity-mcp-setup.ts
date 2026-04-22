@@ -7,17 +7,21 @@ if (!token) {
   throw new Error('SANITY_AUTH_TOKEN environment variable is required for MCP experiments');
 }
 
-const mcpJson = JSON.stringify({
-  mcpServers: {
-    sanity: {
-      type: 'http',
-      url: mcpUrl,
-      headers: {
-        Authorization: `Bearer ${token}`,
+const mcpJson = JSON.stringify(
+  {
+    mcpServers: {
+      sanity: {
+        type: 'http',
+        url: mcpUrl,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
     },
   },
-}, null, 2);
+  null,
+  2,
+);
 
 const codexMcpToml = [
   '',
