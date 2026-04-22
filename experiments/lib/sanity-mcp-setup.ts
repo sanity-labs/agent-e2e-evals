@@ -1,4 +1,5 @@
-import type { ExperimentConfig } from '@vercel/agent-eval';
+import type { SetupFunction } from '@vercel/agent-eval';
+import { baseSetup } from './base-setup.js';
 
 const token = process.env.SANITY_AUTH_TOKEN;
 const mcpUrl = process.env.SANITY_MCP_URL || 'https://mcp.sanity.io/';
@@ -32,7 +33,9 @@ const codexMcpToml = [
   '',
 ].join('\n');
 
-export const sanityMcpSetup: ExperimentConfig['setup'] = async (sandbox) => {
+export const sanityMcpSetup: SetupFunction = async (sandbox) => {
+  await baseSetup(sandbox);
+
   // Claude Code: .mcp.json in project root
   await sandbox.writeFiles({ '.mcp.json': mcpJson });
 
