@@ -1,0 +1,112 @@
+name: Evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      experiments:
+        description: 'Comma-separated experiment names (empty = all)'
+        type: string
+        default: ''
+      force:
+        description: 'Bypass fingerprint cache and re-run everything'
+        type: boolean
+        default: false
+      dry:
+        description: 'Preview what would run without making API calls'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: evals
+  cancel-in-progress: false
+
+jobs:
+  versions:
+    name: Read tool versions
+    runs-on: ubuntu-latest
+    outputs:
+      node: ${{ steps.read.outputs.node }}
+      pnpm: ${{ steps.read.outputs.pnpm }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: jdx/mise-action@v4
+
+      - id: read
+        run: |
+          echo "node=$(mise tool node --requested)" >> "$GITHUB_OUTPUT"
+          echo "pnpm=$(mise tool pnpm --requested)" >> "$GITHUB_OUTPUT"
+
+  run-evals:
+    name: Run agent evals
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: ${{ needs.versions.outputs.pnpm }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ needs.versions.outputs.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run agent-eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+          SANITY_MCP_URL: https://mcp.sanity.work/
+          EXPERIMENTS: ${{ inputs.experiments }}
+          FORCE: ${{ inputs.force }}
+          DRY: ${{ inputs.dry }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ -n "${EXPERIMENTS}" ]]; then
+            IFS=',' read -ra EXPS <<< "${EXPERIMENTS}"
+            for exp in "${EXPS[@]}"; do
+              trimmed="$(echo "${exp}" | xargs)"
+              [[ -n "${trimmed}" ]] && ARGS+=("${trimmed}")
+            done
+          fi
+          [[ "${FORCE}" == "true" ]] && ARGS+=("--force")
+          [[ "${DRY}" == "true" ]] && ARGS+=("--dry")
+          pnpm exec agent-eval "${ARGS[@]}"
+
+      - name: Export results
+        if: ${{ inputs.dry != true }}
+        run: pnpm run export-results
+
+      - name: Upload raw eval results artifact
+        if: ${{ always() && inputs.dry != true }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-results-raw-${{ github.run_id }}
+          path: results
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Commit and push published results
+        if: ${{ inputs.dry != true }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add published/
+          if git diff --cached --quiet; then
+            echo 'No result changes to commit.'
+            exit 0
+          fi
+          git commit -m 'chore(published): refresh eval results [skip ci]'
+          git push

@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test-eval": "node --experimental-strip-types scripts/test-eval.ts",
+    "test-eval": "node scripts/test-eval.ts",
+    "export-results": "node scripts/export-results.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --check",
