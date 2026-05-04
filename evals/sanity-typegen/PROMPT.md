@@ -1,0 +1,1 @@
+My Next.js frontend is setup to read from a Sanity dataset, but the GROQ queries aren't typed which means everything is just `any`. Can you make it so the queries in frontend use the types in the Sanity schema so it's all typesafe?
