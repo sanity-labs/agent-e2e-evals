@@ -1,0 +1,1 @@
+I have a Next.js frontend and a Sanity Studio in this repo. Content editors want a way to visually edit content on the Next.js site from inside the Studio — click on text, edit it, see the changes immediately. Right now there's no way for them to do that, and drafts they make in the Studio don't show up on the site at all. Can you make this work end-to-end?
