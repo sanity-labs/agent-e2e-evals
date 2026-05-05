@@ -161,7 +161,8 @@ async function main(): Promise<void> {
   const resultsRoot = join(cwd, RESULTS_DIR);
   const publishedRoot = join(cwd, PUBLISHED_DIR);
 
-  let experiments = process.argv.slice(2);
+  const explicitExperiments = process.argv.slice(2);
+  let experiments = explicitExperiments;
 
   if (experiments.length === 0) {
     const allDirs = await listDirEntries(resultsRoot);
@@ -183,6 +184,8 @@ async function main(): Promise<void> {
     await rm(join(publishedRoot, experiment), { recursive: true, force: true });
   }
 
+  // When a partial set of experiments is exported, preserve aggregate entries
+  // for unrelated experiments instead of dropping them from the leaderboard.
   const exportedData: ExportedData = {
     metadata: {
       exportedAt: new Date().toISOString(),
@@ -190,6 +193,26 @@ async function main(): Promise<void> {
     },
     results: {},
   };
+
+  if (explicitExperiments.length > 0) {
+    const existingPath = join(publishedRoot, 'agent-results.json');
+    try {
+      const existing = JSON.parse(await readFile(existingPath, 'utf-8')) as ExportedData;
+      const exportingSet = new Set(experiments);
+      for (const meta of existing.metadata?.experiments ?? []) {
+        if (!exportingSet.has(meta.name)) {
+          exportedData.metadata.experiments.push(meta);
+        }
+      }
+      for (const [name, results] of Object.entries(existing.results ?? {})) {
+        if (!exportingSet.has(name)) {
+          exportedData.results[name] = results;
+        }
+      }
+    } catch {
+      // No existing aggregate to merge from.
+    }
+  }
 
   for (const experiment of experiments) {
     const expDir = join(resultsRoot, experiment);

@@ -61,6 +61,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run agent-eval
+        id: run-evals
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -71,22 +72,40 @@ jobs:
           FORCE: ${{ inputs.force }}
           DRY: ${{ inputs.dry }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           ARGS=()
+          EXPS_ARGS=()
           if [[ -n "${EXPERIMENTS}" ]]; then
             IFS=',' read -ra EXPS <<< "${EXPERIMENTS}"
             for exp in "${EXPS[@]}"; do
               trimmed="$(echo "${exp}" | xargs)"
-              [[ -n "${trimmed}" ]] && ARGS+=("${trimmed}")
+              [[ -n "${trimmed}" ]] && EXPS_ARGS+=("${trimmed}")
             done
           fi
+          ARGS+=("${EXPS_ARGS[@]}")
           [[ "${FORCE}" == "true" ]] && ARGS+=("--force")
           [[ "${DRY}" == "true" ]] && ARGS+=("--dry")
-          pnpm exec agent-eval "${ARGS[@]}"
+          # Persist the explicit experiment list so the export step can scope
+          # itself to the same set and preserve aggregate entries for the rest.
+          printf '%s\n' "${EXPS_ARGS[@]}" > /tmp/eval-experiments.txt
+          set +e
+          pnpm exec agent-eval run-all "${ARGS[@]}"
+          status=$?
+          set -e
+          echo "exit-code=${status}" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Export results
-        if: ${{ inputs.dry != true }}
-        run: pnpm run export-results
+        if: ${{ always() && inputs.dry != true }}
+        run: |
+          set -euo pipefail
+          EXPS=()
+          if [[ -s /tmp/eval-experiments.txt ]]; then
+            while IFS= read -r line; do
+              [[ -n "${line}" ]] && EXPS+=("${line}")
+            done < /tmp/eval-experiments.txt
+          fi
+          pnpm run export-results -- "${EXPS[@]}"
 
       - name: Upload raw eval results artifact
         if: ${{ always() && inputs.dry != true }}
@@ -98,7 +117,7 @@ jobs:
           retention-days: 30
 
       - name: Commit and push published results
-        if: ${{ inputs.dry != true }}
+        if: ${{ always() && inputs.dry != true }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -110,3 +129,15 @@ jobs:
           fi
           git commit -m 'chore(published): refresh eval results [skip ci]'
           git push
+
+      - name: Report eval exit status
+        if: ${{ always() && inputs.dry != true }}
+        env:
+          EVAL_EXIT_CODE: ${{ steps.run-evals.outputs.exit-code }}
+        run: |
+          set -euo pipefail
+          echo "agent-eval exit code: ${EVAL_EXIT_CODE:-unknown}"
+          if [[ "${EVAL_EXIT_CODE:-0}" != "0" ]]; then
+            echo "agent-eval reported failures; failing the job after publishing results."
+            exit 1
+          fi
