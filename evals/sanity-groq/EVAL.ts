@@ -38,9 +38,7 @@ async function findPostDetailRoute(): Promise<string | undefined> {
 // rest of the template stores GROQ in `frontend/sanity/lib/queries.ts`, which
 // is the natural home, but we don't want to fail an otherwise-correct
 // solution that picked a slightly different filename.
-async function findPostQueryModule(): Promise<
-  { filePath: string; content: string; exportName: string } | undefined
-> {
+async function findPostQueryModule(): Promise<{ filePath: string; content: string; exportName: string } | undefined> {
   const exportRe = /export\s+const\s+(\w*postQuery)\b/i;
   for await (const filePath of fs.glob('frontend/**/*.{ts,tsx,js,jsx}', {
     exclude: ['**/node_modules/**', '**/.next/**', '**/.sanity/**', '**/dist/**', '**/.git/**'],
@@ -254,16 +252,12 @@ test('Post detail route renders the existing `PortableText` and `Avatar` compone
     portableTextBinding,
     'expected the route to import the default export from `@/app/components/PortableText` (the project ships `CustomPortableText` here for blog rendering)',
   ).toBeDefined();
-  expect(
-    content,
-    `expected the route to render <${portableTextBinding} ... /> for the post body`,
-  ).toMatch(new RegExp(`<${portableTextBinding}\\b`));
+  expect(content, `expected the route to render <${portableTextBinding} ... /> for the post body`).toMatch(
+    new RegExp(`<${portableTextBinding}\\b`),
+  );
 
   const avatarBinding = findDefaultImportBinding(/(?:@\/app|\.\.?(?:\/[^'"\s]*)*)\/components\/Avatar/);
-  expect(
-    avatarBinding,
-    'expected the route to import the default export from `@/app/components/Avatar`',
-  ).toBeDefined();
+  expect(avatarBinding, 'expected the route to import the default export from `@/app/components/Avatar`').toBeDefined();
   expect(content, `expected the route to render <${avatarBinding} ... /> for the post author`).toMatch(
     new RegExp(`<${avatarBinding}\\b`),
   );
