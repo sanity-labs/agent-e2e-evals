@@ -128,6 +128,7 @@ jobs:
             exit 0
           fi
           git commit -m 'chore(published): refresh eval results [skip ci]'
+          git pull --rebase
           git push
 
       - name: Report eval exit status
