@@ -1,8 +1,8 @@
 #:schema https://mise.jdx.dev/schema/mise.json
 
 [tools]
+pnpm = "11"
 node = "24"
-pnpm = "10"
 
 [tasks.setup]
 description = "Installs dependencies"
