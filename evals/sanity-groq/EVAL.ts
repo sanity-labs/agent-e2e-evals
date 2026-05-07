@@ -159,14 +159,34 @@ test('`postQuery` projects the fields the page needs (content, author dereferenc
   ).toMatch(/\bcontent\b/);
 
   // The remaining fields are commonly delegated to a `${postFields}`-style
-  // fragment in the same file, so we look across the whole module instead of
-  // just the postQuery body. Using `fileContent` here is intentional.
+  // fragment, so resolve any `${...}` interpolations in the body against the
+  // surrounding module before asserting. Otherwise these checks would pass on
+  // the strength of unrelated queries (e.g. `allPostsQuery`) that already
+  // mention these fields elsewhere in the same file.
+  const fragmentRe = /\$\{(\w+)\}/g;
+  let resolvedBody = body;
+  const seen = new Set<string>();
+  for (let depth = 0; depth < 5; depth++) {
+    const interpolations = [...resolvedBody.matchAll(fragmentRe)].map((m) => m[1]!).filter((name) => !seen.has(name));
+    if (interpolations.length === 0) break;
+    for (const name of interpolations) {
+      seen.add(name);
+      const fragmentRe = new RegExp(
+        `(?:export\\s+)?const\\s+${name}\\s*=\\s*(?:\\/\\*[\\s\\S]*?\\*\\/\\s*)?([\`'"])([\\s\\S]*?)\\1`,
+      );
+      const fragmentMatch = fileContent.match(fragmentRe);
+      if (fragmentMatch) {
+        resolvedBody = resolvedBody.split(`\${${name}}`).join(fragmentMatch[2]!);
+      }
+    }
+  }
+
   expect(
-    fileContent,
-    'expected the queries module to dereference `author` (e.g. `author->{firstName, lastName, picture}`) — without it, Avatar has no name/picture to render',
+    resolvedBody,
+    `expected \`${exportName}\` to dereference \`author\` (e.g. \`author->{firstName, lastName, picture}\`) — without it, Avatar has no name/picture to render`,
   ).toMatch(/author\s*->/);
-  expect(fileContent, 'expected the queries module to project `coverImage` for the post').toMatch(/\bcoverImage\b/);
-  expect(fileContent, 'expected the queries module to project `title` for the post').toMatch(/\btitle\b/);
+  expect(resolvedBody, `expected \`${exportName}\` to project \`coverImage\` for the post`).toMatch(/\bcoverImage\b/);
+  expect(resolvedBody, `expected \`${exportName}\` to project \`title\` for the post`).toMatch(/\btitle\b/);
 });
 
 test('A slugs-only post query exists for `generateStaticParams`', () => {
