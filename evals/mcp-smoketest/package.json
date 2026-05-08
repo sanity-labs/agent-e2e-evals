@@ -1,6 +1,9 @@
 {
   "name": "sanity-mcp-list-projects",
   "type": "module",
+  "scripts": {
+    "build": "echo 'no build step for mcp-smoketest'"
+  },
   "devDependencies": {
     "vitest": "^2.1.0"
   }

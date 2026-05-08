@@ -1,4 +1,3 @@
-import { execSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { test, expect } from 'vitest';
 
@@ -38,8 +37,4 @@ test('posts page uses sanityFetch instead of client.fetch', () => {
 test('root layout includes SanityLive component', () => {
   const content = readFileSync('src/app/layout.tsx', 'utf-8');
   expect(content).toMatch(/<SanityLive\s*\/?>/);
-});
-
-test('app builds successfully', () => {
-  execSync('npm run build', { stdio: 'pipe' });
 });

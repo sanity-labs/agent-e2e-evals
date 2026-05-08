@@ -19,6 +19,7 @@
     "frontend"
   ],
   "scripts": {
+    "build": "npm run type-check --workspace=frontend",
     "dev": "npx run-p --print-label dev:*",
     "dev:next": "npm run dev --workspace=frontend",
     "dev:studio": "npm run dev --workspace=studio",

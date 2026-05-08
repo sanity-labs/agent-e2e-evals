@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from 'vitest';
@@ -120,9 +119,4 @@ test('env files reference the canonical Sanity env vars', async () => {
     .join('\n');
   expect(env).toMatch(/NEXT_PUBLIC_SANITY_PROJECT_ID/);
   expect(env).toMatch(/NEXT_PUBLIC_SANITY_DATASET/);
-});
-
-test('app builds successfully', () => {
-  expect(nextAppDir).not.toBeUndefined();
-  execSync('npm run build', { stdio: 'pipe', cwd: nextAppDir! });
 });
