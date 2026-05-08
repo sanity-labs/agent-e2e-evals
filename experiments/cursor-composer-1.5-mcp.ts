@@ -6,7 +6,7 @@ const config: ExperimentConfig = {
   model: 'composer-1.5',
   scripts: ['build'],
   runs: 4,
-  earlyExit: true,
+  earlyExit: false,
   timeout: 1200,
   setup: sanityMcpSetup,
 };
