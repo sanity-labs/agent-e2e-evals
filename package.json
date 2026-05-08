@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.12.2",
-    "@vercel/agent-eval": "^0.12.1",
+    "@vercel/agent-eval": "^0.14.0",
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "tinyexec": "^1.1.1",
