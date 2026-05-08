@@ -117,7 +117,7 @@ test('env files reference the canonical Sanity env vars', async () => {
   ];
   const env = (await Promise.all(envFiles.map((p) => readFile(p))))
     .filter((c): c is string => c !== undefined)
-    .path.join('\n');
+    .join('\n');
   expect(env).toMatch(/NEXT_PUBLIC_SANITY_PROJECT_ID/);
   expect(env).toMatch(/NEXT_PUBLIC_SANITY_DATASET/);
 });
