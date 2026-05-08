@@ -7,7 +7,7 @@ const config: ExperimentConfig = {
   scripts: ['build'],
   runs: 4,
   earlyExit: true,
-  timeout: 720,
+  timeout: 1200,
   setup: sanityMcpSetup,
 };
 
