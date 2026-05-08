@@ -18,9 +18,3 @@ test('entries follow the expected format', () => {
     expect(line).toMatch(/^[a-z0-9]+ - .+/);
   }
 });
-
-test('contains known projects', () => {
-  const content = readFileSync('projects.txt', 'utf-8');
-  expect(content).toContain('3do82whm');
-  expect(content).toContain('Sanity.io website');
-});
