@@ -1,5 +1,5 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
-import { baseSetup } from './lib/base-setup.js';
+import { baseSetup, nonMcpEvals } from './lib/base-setup.js';
 
 const config: ExperimentConfig = {
   agent: 'codex',
@@ -8,6 +8,7 @@ const config: ExperimentConfig = {
   runs: 4,
   earlyExit: true,
   timeout: 720,
+  evals: nonMcpEvals,
   setup: baseSetup,
 };
 
