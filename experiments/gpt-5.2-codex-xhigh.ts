@@ -6,7 +6,7 @@ const config: ExperimentConfig = {
   model: 'gpt-5.2-codex?reasoningEffort=xhigh',
   scripts: ['build'],
   runs: 4,
-  earlyExit: true,
+  earlyExit: false,
   timeout: 1200,
   evals: nonMcpEvals,
   setup: baseSetup,
