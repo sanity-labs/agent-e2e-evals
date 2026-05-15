@@ -1,6 +1,9 @@
 {
   "name": "sanity-nextjs-starter",
   "type": "module",
+  "scripts": {
+    "build": "cd app && npm run build"
+  },
   "devDependencies": {
     "vitest": "^2.1.0"
   }
