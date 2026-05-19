@@ -6,8 +6,9 @@ import DateComponent from '@/app/components/Date'
 import OnBoarding from '@/app/components/Onboarding'
 import Avatar from '@/app/components/Avatar'
 import {dataAttr} from '@/sanity/lib/utils'
+import {AllPostsQueryResult} from '@/sanity.types'
 
-const Post = ({post}: {post: any}) => {
+const Post = ({post}: {post: AllPostsQueryResult[number]}) => {
   const {_id, title, slug, excerpt, date, author} = post
 
   return (
@@ -66,7 +67,7 @@ export const MorePosts = async ({skip, limit}: {skip: string; limit: number}) =>
 
   return (
     <Posts heading={`Recent Posts (${data?.length})`}>
-      {data?.map((post: any) => (
+      {data?.map((post: AllPostsQueryResult[number]) => (
         <Post key={post._id} post={post} />
       ))}
     </Posts>
@@ -85,7 +86,7 @@ export const AllPosts = async () => {
       heading="Recent Posts"
       subHeading={`${data.length === 1 ? 'This blog post is' : `These ${data.length} blog posts are`} populated from your Sanity Studio.`}
     >
-      {data.map((post: any) => (
+      {data.map((post: AllPostsQueryResult[number]) => (
         <Post key={post._id} post={post} />
       ))}
     </Posts>
