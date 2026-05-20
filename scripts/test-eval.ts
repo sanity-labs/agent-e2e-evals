@@ -7,7 +7,7 @@
  * `agent-eval` CLI against it, and cleans up on exit.
  *
  * Usage:
- *   pnpm test-eval <eval-name> [--agent <agent>] [--model <model>]
+ *   pnpm test-eval <eval-name> [--agent <agent>] [--model <model>] [--runs <count>]
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -18,18 +18,25 @@ const { values, positionals } = parseArgs({
   options: {
     agent: { type: 'string', default: 'claude-code' },
     model: { type: 'string', default: 'claude-sonnet-4-6' },
+    runs: { type: 'string', short: 'r', default: '1' },
     help: { type: 'boolean', short: 'h', default: false },
   },
   allowPositionals: true,
 });
 
 if (values.help || positionals.length === 0) {
-  console.log('Usage: pnpm test-eval <eval-name> [--agent <agent>] [--model <model>]');
+  console.log('Usage: pnpm test-eval <eval-name> [--agent <agent>] [--model <model>] [--runs <count>]');
   process.exit(values.help ? 0 : 1);
 }
 
 const evalName = positionals[0]!;
 const { agent, model } = values;
+const runs = Number.parseInt(values.runs, 10);
+
+if (!Number.isSafeInteger(runs) || runs < 1) {
+  console.error(`Invalid --runs value: ${values.runs}. Expected a positive integer.`);
+  process.exit(1);
+}
 
 const experimentsDir = resolve(process.cwd(), 'experiments');
 const tempName = `_temp_${evalName.replace(/[^a-zA-Z0-9_-]/g, '-')}-${process.pid}`;
@@ -42,8 +49,8 @@ const config: ExperimentConfig = {
   agent: ${JSON.stringify(agent)},
   model: ${JSON.stringify(model)},
   scripts: [],
-  runs: 1,
-  earlyExit: true,
+  runs: ${runs},
+  earlyExit: false,
   timeout: 60 * 15,
   evals: ${JSON.stringify(evalName)},
   setup: baseSetup,
