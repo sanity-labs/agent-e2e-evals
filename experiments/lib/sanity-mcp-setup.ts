@@ -43,7 +43,7 @@ export const sanityMcpSetup: SetupFunction = async (sandbox) => {
   await sandbox.runCommand('mkdir', ['-p', '.cursor']);
   await sandbox.writeFiles({ '.cursor/mcp.json': mcpJson });
 
-  // Codex: ~/.codex/config.toml
-  await sandbox.runCommand('mkdir', ['-p', '/root/.codex']);
-  await sandbox.writeFiles({ '/root/.codex/config.toml': codexMcpToml });
+  // Codex: append MCP config to ~/.codex/config.toml (user-level, always loaded regardless of project trust)
+  await sandbox.runCommand('bash', ['-c', 'mkdir -p ~/.codex']);
+  await sandbox.runCommand('bash', ['-c', `cat >> ~/.codex/config.toml << 'EOF'\n${codexMcpToml}\nEOF`]);
 };

@@ -68,6 +68,9 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
           SANITY_MCP_URL: https://mcp.sanity.work/
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           EXPERIMENTS: ${{ inputs.experiments }}
           FORCE: ${{ inputs.force }}
           DRY: ${{ inputs.dry }}
