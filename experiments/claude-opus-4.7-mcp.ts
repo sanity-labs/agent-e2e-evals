@@ -3,7 +3,7 @@ import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
 
 const config: ExperimentConfig = {
   agent: 'claude-code',
-  model: 'claude-opus-4-5',
+  model: 'claude-opus-4-7',
   scripts: ['build'],
   runs: 4,
   earlyExit: false,

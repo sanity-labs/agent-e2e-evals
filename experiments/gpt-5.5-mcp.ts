@@ -1,15 +1,14 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
-import { baseSetup, nonMcpEvals } from './lib/base-setup.js';
+import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
 
 const config: ExperimentConfig = {
   agent: 'codex',
-  model: 'gpt-5.3-codex?reasoningEffort=xhigh',
+  model: 'gpt-5.5',
   scripts: ['build'],
   runs: 4,
   earlyExit: false,
   timeout: 1200,
-  evals: nonMcpEvals,
-  setup: baseSetup,
+  setup: sanityMcpSetup,
 };
 
 export default config;

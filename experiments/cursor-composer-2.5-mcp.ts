@@ -1,15 +1,14 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
-import { baseSetup, nonMcpEvals } from './lib/base-setup.js';
+import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
 
 const config: ExperimentConfig = {
-  agent: 'claude-code',
-  model: 'claude-opus-4-5',
+  agent: 'cursor',
+  model: 'composer-2.5',
   scripts: ['build'],
   runs: 4,
   earlyExit: false,
   timeout: 1200,
-  evals: nonMcpEvals,
-  setup: baseSetup,
+  setup: sanityMcpSetup,
 };
 
 export default config;

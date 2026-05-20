@@ -2,8 +2,8 @@ import type { ExperimentConfig } from '@vercel/agent-eval';
 import { baseSetup, nonMcpEvals } from './lib/base-setup.js';
 
 const config: ExperimentConfig = {
-  agent: 'codex',
-  model: 'gpt-5.2-codex?reasoningEffort=xhigh',
+  agent: 'claude-code',
+  model: 'claude-opus-4-7',
   scripts: ['build'],
   runs: 4,
   earlyExit: false,
