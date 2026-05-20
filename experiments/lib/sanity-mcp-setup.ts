@@ -43,7 +43,9 @@ export const sanityMcpSetup: SetupFunction = async (sandbox) => {
   await sandbox.runCommand('mkdir', ['-p', '.cursor']);
   await sandbox.writeFiles({ '.cursor/mcp.json': mcpJson });
 
-  // Codex: ~/.codex/config.toml
-  await sandbox.runCommand('mkdir', ['-p', '/root/.codex']);
-  await sandbox.writeFiles({ '/root/.codex/config.toml': codexMcpToml });
+  // Codex: ~/.codex/config.toml (use bash -c because writeFiles can't write to /root in Vercel Sandbox)
+  await sandbox.runCommand('bash', [
+    '-c',
+    `mkdir -p ~/.codex && cat >> ~/.codex/config.toml << 'MCPEOF'\n${codexMcpToml}\nMCPEOF`,
+  ]);
 };
