@@ -281,5 +281,3 @@ test('Post detail route renders the existing `PortableText` and `Avatar` compone
     new RegExp(`<${avatarBinding}\\b`),
   );
 });
-
-
