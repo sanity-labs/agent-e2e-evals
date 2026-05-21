@@ -1,0 +1,15 @@
+import type { ExperimentConfig } from '@vercel/agent-eval';
+import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
+
+const config: ExperimentConfig = {
+  agent: 'claude-code',
+  model: 'claude-opus-4-6',
+  scripts: ['build'],
+  runs: 4,
+  earlyExit: false,
+  timeout: 1200,
+  evals: nonMcpEvals,
+  setup: createSanitySkillsSetup('claude-code'),
+};
+
+export default config;
