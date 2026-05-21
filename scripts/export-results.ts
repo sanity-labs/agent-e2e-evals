@@ -24,6 +24,7 @@ type EvalType = 'baseline' | 'mcp' | 'skills';
 interface EvalResult {
   name: string;
   displayName: string;
+  url: string;
   score: number;
   duration: number;
 }
@@ -40,7 +41,7 @@ interface ExperimentResult {
 interface ExportedSummary {
   version: 1;
   timestamp: string;
-  evalNames: Array<{ name: string; displayName: string }>;
+  evalNames: Array<{ name: string; displayName: string; url: string }>;
   experiments: ExperimentResult[];
 }
 
@@ -78,6 +79,8 @@ const EVAL_DISPLAY_NAMES: Record<string, string> = {
 };
 
 const INTERNAL_EVALS = new Set(['mcp-smoketest']);
+
+const EVAL_BASE_URL = 'https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals';
 
 function getEvalType(experimentName: string): EvalType {
   if (experimentName.endsWith('-skills')) return 'skills';
@@ -201,6 +204,7 @@ async function collectExperimentEvals(expDir: string): Promise<EvalResult[]> {
       results.push({
         name: evalDir,
         displayName: EVAL_DISPLAY_NAMES[evalDir] ?? evalDir,
+        url: `${EVAL_BASE_URL}/${evalDir}`,
         score,
         duration: summary.meanDuration,
       });
@@ -269,7 +273,10 @@ const exportDir = join(PUBLISHED_DIR, latestTs);
 await mkdir(exportDir, { recursive: true });
 
 const evalNamesSet = new Set<string>(experimentResults.flatMap((exp) => exp.evals.map((ev) => ev.name)));
-const evalNames = [...evalNamesSet].sort().map((name) => ({ name, displayName: EVAL_DISPLAY_NAMES[name] ?? name }));
+const evalNames = evalNamesSet
+  .values()
+  .map((name) => ({ name, displayName: EVAL_DISPLAY_NAMES[name] ?? name, url: `${EVAL_BASE_URL}/${name}` }))
+  .toArray();
 
 const summary: ExportedSummary = {
   version: 1,
