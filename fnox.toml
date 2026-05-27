@@ -20,5 +20,5 @@ SANITY_AUTH_TOKEN = { provider = "op", value = "agent-evals-exploration sanity-s
 SANITY_MCP_URL = { default = "https://mcp.sanity.work/" }
 
 # Vercel Sandbox config - unused if you don't provide VERCEL_TOKEN/VERCEL_OIDC_TOKEN
-VERCEL_PROJECT_ID = { default = "TODO" }
+VERCEL_PROJECT_ID = { default = "prj_nkvmq75NiBAHvalqCiwEw18MoEn6" }
 VERCEL_TEAM_ID = { default = "team_oqU06TUi6OGH315dQZ2wFh08" }
