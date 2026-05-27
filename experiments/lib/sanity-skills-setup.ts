@@ -15,7 +15,7 @@ export function createSanitySkillsSetup(agent: string): SetupFunction {
       '--agent',
       agent,
       '--skill',
-      '*',
+      'sanity-best-practices',
       '--yes',
     ]);
   };
