@@ -88,9 +88,6 @@ jobs:
           ARGS+=("${EXPS_ARGS[@]}")
           [[ "${FORCE}" == "true" ]] && ARGS+=("--force")
           [[ "${DRY}" == "true" ]] && ARGS+=("--dry")
-          # Persist the explicit experiment list so the export step can scope
-          # itself to the same set and preserve aggregate entries for the rest.
-          printf '%s\n' "${EXPS_ARGS[@]}" > /tmp/eval-experiments.txt
           set +e
           pnpm exec agent-eval run-all "${ARGS[@]}"
           status=$?
@@ -100,15 +97,7 @@ jobs:
 
       - name: Export results
         if: ${{ always() && inputs.dry != true }}
-        run: |
-          set -euo pipefail
-          EXPS=()
-          if [[ -s /tmp/eval-experiments.txt ]]; then
-            while IFS= read -r line; do
-              [[ -n "${line}" ]] && EXPS+=("${line}")
-            done < /tmp/eval-experiments.txt
-          fi
-          pnpm run export-results -- "${EXPS[@]}"
+        run: pnpm run export-results
 
       - name: Upload raw eval results artifact
         if: ${{ always() && inputs.dry != true }}

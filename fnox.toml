@@ -21,4 +21,4 @@ SANITY_MCP_URL = { default = "https://mcp.sanity.work/" }
 
 # Vercel Sandbox config - unused if you don't provide VERCEL_TOKEN/VERCEL_OIDC_TOKEN
 VERCEL_PROJECT_ID = { default = "prj_nkvmq75NiBAHvalqCiwEw18MoEn6" }
-VERCEL_TEAM_ID = { default = "team_x38jl68K9FkR8GWRjI2gtG27" }
+VERCEL_TEAM_ID = { default = "team_oqU06TUi6OGH315dQZ2wFh08" }
