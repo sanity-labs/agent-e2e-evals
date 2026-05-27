@@ -109,6 +109,12 @@ jobs:
         if: ${{ always() && inputs.dry != true }}
         run: pnpm run export-results
 
+      - name: Redact raw eval results
+        if: ${{ always() && inputs.dry != true }}
+        env:
+          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+        run: pnpm run redact-results
+
       - name: Upload raw eval results artifact
         if: ${{ always() && inputs.dry != true }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

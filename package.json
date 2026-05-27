@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test-eval": "node scripts/test-eval.ts",
     "export-results": "node scripts/export-results.ts",
+    "redact-results": "node scripts/redact-results.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --check",
