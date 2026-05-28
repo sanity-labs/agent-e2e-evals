@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { glob, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { scrubSecrets } from '../experiments/lib/redact-secrets.js';
+import { scrubSecrets } from '../experiments/lib/redact-secrets.ts';
 
 const RESULTS_DIR = join(import.meta.dirname, '..', 'results');
 
