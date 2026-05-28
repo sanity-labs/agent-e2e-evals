@@ -46,7 +46,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
+      - name: Generate Squiggler app token
+        if: ${{ inputs.dry != true }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.ECOSPARK_APP_ID }}
+          private-key: ${{ secrets.ECOSPARK_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6.0.5
         with:
@@ -112,8 +122,8 @@ jobs:
         if: ${{ always() && inputs.dry != true }}
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'squiggler-app[bot]'
+          git config user.email '265501495+squiggler-app[bot]@users.noreply.github.com'
           git add published/
           if git diff --cached --quiet; then
             echo 'No result changes to commit.'
@@ -121,7 +131,7 @@ jobs:
           fi
           git commit -m 'chore(published): refresh eval results [skip ci]'
           git pull --rebase
-          git push
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Report eval exit status
         if: ${{ always() && inputs.dry != true }}
