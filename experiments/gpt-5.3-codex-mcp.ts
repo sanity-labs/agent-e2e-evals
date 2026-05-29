@@ -1,4 +1,5 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import { redactSecrets } from './lib/redact-secrets.js';
 import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
 
 const config: ExperimentConfig = {
@@ -9,6 +10,7 @@ const config: ExperimentConfig = {
   earlyExit: false,
   timeout: 1200,
   setup: sanityMcpSetup,
+  onRunComplete: redactSecrets,
 };
 
 export default config;
