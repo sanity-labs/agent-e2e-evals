@@ -62,6 +62,7 @@ const HARNESS_NAMES: Record<string, string> = {
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'claude-opus-4.6': 'Claude Opus 4.6',
   'claude-opus-4.7': 'Claude Opus 4.7',
+  'claude-opus-4.8': 'Claude Opus 4.8',
   'claude-sonnet-4.6': 'Claude Sonnet 4.6',
   'cursor-composer-2.0': 'Cursor Composer 2.0',
   'cursor-composer-2.5': 'Cursor Composer 2.5',
