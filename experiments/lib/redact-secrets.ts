@@ -21,7 +21,13 @@ export function scrubSecrets(value: string): string {
 }
 
 /** @vercel/agent-eval hook to redact secrets before results are written to disk. */
-export const redactSecrets: RunCompleteHook = ({ runData }) => {
+export const redactSecrets: RunCompleteHook = ({ config, runData }) => {
+  // If copyFiles isn't needed, reduce RAM usage by stripping file contents from the results
+  if (config.copyFiles === 'none') {
+    runData.generatedFiles = {};
+    runData.deletedFiles = [];
+  }
+
   if (!secretsRegExp) return runData;
 
   return mapObject(

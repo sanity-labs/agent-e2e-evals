@@ -5,3 +5,5 @@ allowBuilds:
   ssh2: false
 minimumReleaseAgeExclude:
   - '@vercel/agent-eval@0.14.2'
+patchedDependencies:
+  '@vercel/agent-eval@0.14.2': patches/@vercel__agent-eval@0.14.2.patch
