@@ -5,7 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@vercel/agent-eval@0.14.2': aca39474f5fcd613ab1c2bddf7921a54cf264a979d660f7bc7a6b8d5035777ec
+  '@vercel/agent-eval@0.14.2':
+    hash: 3eb6f5333c228e991123ef2281305be386ea3625158600f51fc94924e6f4e9ab
+    path: patches/@vercel__agent-eval@0.14.2.patch
 
 importers:
 
@@ -16,7 +18,7 @@ importers:
         version: 24.12.2
       '@vercel/agent-eval':
         specifier: ^0.14.2
-        version: 0.14.2(patch_hash=aca39474f5fcd613ab1c2bddf7921a54cf264a979d660f7bc7a6b8d5035777ec)
+        version: 0.14.2(patch_hash=3eb6f5333c228e991123ef2281305be386ea3625158600f51fc94924e6f4e9ab)
       map-obj:
         specifier: ^6.0.0
         version: 6.0.0
@@ -1726,7 +1728,7 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
-  '@vercel/agent-eval@0.14.2(patch_hash=aca39474f5fcd613ab1c2bddf7921a54cf264a979d660f7bc7a6b8d5035777ec)':
+  '@vercel/agent-eval@0.14.2(patch_hash=3eb6f5333c228e991123ef2281305be386ea3625158600f51fc94924e6f4e9ab)':
     dependencies:
       '@ai-sdk/anthropic': 1.2.12(zod@3.25.76)
       '@vercel/sandbox': 1.10.2
