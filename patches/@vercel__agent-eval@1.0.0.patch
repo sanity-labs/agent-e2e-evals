@@ -1,0 +1,25 @@
+diff --git a/dist/lib/runner.js b/dist/lib/runner.js
+index 74158bd3c9baf79b6758b58615a3affc9162ed63..21f0d618a554b2409be9f4f972e33f19bcac9d41 100644
+--- a/dist/lib/runner.js
++++ b/dist/lib/runner.js
+@@ -4,8 +4,11 @@
+  * 429 rate-limit errors are retried with exponential backoff.
+  * With earlyExit, in-flight attempts are aborted when one passes.
+  */
++import pLimit from 'p-limit';
+ import { getAgent } from './agents/index.js';
+ import { agentResultToEvalRunData, createEvalSummary, createExperimentResults, saveResults, } from './results.js';
++const MAX_CONCURRENT_RUNS = Number(process.env.AGENT_EVAL_MAX_CONCURRENCY) || 128;
++const globalRunLimit = pLimit(MAX_CONCURRENT_RUNS);
+ /**
+  * Rate-limits how many operations can START within a time window.
+  * Once started, operations run freely with no concurrency limit.
+@@ -220,7 +223,7 @@ export async function runExperiment(options) {
+         }
+         return result;
+     };
+-    const results = await Promise.all(attempts.map(runOne));
++    const results = await Promise.all(attempts.map((attempt) => globalRunLimit(() => runOne(attempt))));
+     // Group results by fixture, excluding aborted results
+     const resultsByFixture = new Map();
+     for (const fixture of fixtures) {
