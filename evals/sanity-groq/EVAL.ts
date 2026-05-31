@@ -32,22 +32,41 @@ async function findPostDetailRoute(): Promise<string | undefined> {
   return undefined;
 }
 
-// Locate any module that exports a `postQuery` (or anything ending in
-// `PostQuery`) so the agent isn't forced to put it in a specific file. The
-// rest of the template stores GROQ in `frontend/sanity/lib/queries.ts`, which
-// is the natural home, but we don't want to fail an otherwise-correct
-// solution that picked a slightly different filename.
+// Locate the module that exports the single-post-by-slug query. We don't force
+// a specific filename or export name — the rest of the template stores GROQ in
+// `frontend/sanity/lib/queries.ts`, but an otherwise-correct solution that
+// named the export `postBySlugQuery` (or put it elsewhere) shouldn't fail.
+// Detection accepts any `defineQuery` export whose body fetches a single post
+// by slug; a name ending in `postQuery` is also accepted as a fallback so the
+// downstream field/import assertions still grade query quality.
 async function findPostQueryModule(): Promise<{ filePath: string; content: string; exportName: string } | undefined> {
-  const exportRe = /export\s+const\s+(\w*postQuery)\b/i;
+  const exportRe = /export\s+const\s+(\w+)\s*=\s*defineQuery\s*\(\s*([`'"])([\s\S]*?)\2\s*\)/g;
+  const nameRe = /export\s+const\s+(\w*postQuery)\b/i;
+  let nameFallback: { filePath: string; content: string; exportName: string } | undefined;
+
   for await (const filePath of fs.glob('frontend/**/*.{ts,tsx,js,jsx}', {
     exclude: ['**/node_modules/**', '**/.next/**', '**/.sanity/**', '**/dist/**', '**/.git/**'],
   })) {
     const content = await readFile(filePath);
     if (!content) continue;
-    const match = content.match(exportRe);
-    if (match) return { filePath, content, exportName: match[1]! };
+
+    for (const match of content.matchAll(exportRe)) {
+      const [, exportName, , body] = match;
+      if (!exportName || !body) continue;
+      // A single-post-by-slug query: filters posts and matches on the slug param.
+      const filtersOnPost = /_type\s*==\s*['"]post['"]/.test(body);
+      const matchesSlugParam = /slug\.current\s*==\s*\$slug/.test(body);
+      if (filtersOnPost && matchesSlugParam) {
+        return { filePath, content, exportName };
+      }
+    }
+
+    if (!nameFallback) {
+      const nameMatch = content.match(nameRe);
+      if (nameMatch?.[1]) nameFallback = { filePath, content, exportName: nameMatch[1] };
+    }
   }
-  return undefined;
+  return nameFallback;
 }
 
 // Locate any module that exports a slugs-only query for posts (the query that
