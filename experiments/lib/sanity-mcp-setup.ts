@@ -55,6 +55,23 @@ const cursorMcpJson = JSON.stringify(
   2,
 );
 
+const geminiSettingsJson = JSON.stringify(
+  {
+    mcpServers: {
+      sanity: {
+        httpUrl: mcpUrl,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        trust: true,
+        excludeTools: disabledTools,
+      },
+    },
+  },
+  null,
+  2,
+);
+
 const codexMcpToml = [
   '',
   '[mcp_servers.sanity]',
@@ -76,6 +93,10 @@ export const sanityMcpSetup: SetupFunction = async (sandbox) => {
   // Cursor: .cursor/mcp.json in project root
   await sandbox.runCommand('mkdir', ['-p', '.cursor']);
   await sandbox.writeFiles({ '.cursor/mcp.json': cursorMcpJson });
+
+  // Gemini CLI: .gemini/settings.json in project root
+  await sandbox.runCommand('mkdir', ['-p', '.gemini']);
+  await sandbox.writeFiles({ '.gemini/settings.json': geminiSettingsJson });
 
   // Codex: append MCP config to ~/.codex/config.toml (user-level, always loaded regardless of project trust)
   await sandbox.runCommand('bash', ['-c', 'mkdir -p ~/.codex']);
