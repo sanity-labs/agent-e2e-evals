@@ -6,7 +6,7 @@ const config: ExperimentConfig = {
   agent: 'codex',
   model: 'gpt-5.5',
   scripts: ['build'],
-  runs: 25,
+  runs: 16,
   earlyExit: false,
   timeout: 1800,
   evals: nonMcpEvals,
