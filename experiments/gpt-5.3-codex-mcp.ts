@@ -6,7 +6,7 @@ const config: ExperimentConfig = {
   agent: 'codex',
   model: 'gpt-5.3-codex',
   scripts: ['build'],
-  runs: 8,
+  runs: 25,
   earlyExit: false,
   timeout: 1800,
   setup: sanityMcpSetup,

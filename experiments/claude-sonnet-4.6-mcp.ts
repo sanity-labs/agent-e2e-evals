@@ -6,7 +6,7 @@ const config: ExperimentConfig = {
   agent: 'claude-code',
   model: 'claude-sonnet-4-6',
   scripts: ['build'],
-  runs: 8,
+  runs: 25,
   earlyExit: false,
   timeout: 1800,
   setup: sanityMcpSetup,
