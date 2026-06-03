@@ -4,4 +4,4 @@ allowBuilds:
   protobufjs: false
   ssh2: false
 minimumReleaseAgeExclude:
-  - '@vercel/agent-eval@0.14.2'
+  - '@vercel/agent-eval@1.0.0'
