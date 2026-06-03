@@ -26,22 +26,21 @@ interface SummaryJson {
   valid?: boolean;
 }
 
-interface RunDetail {
+interface RunStats {
   score: number;
   duration: number | null;
 }
 
 interface EvalDetail {
-  score: number;
-  meanDuration: number;
-  runs: RunDetail[];
+  average: RunStats;
+  runs: RunStats[];
 }
 
 interface VariantResult {
   experimentName: string;
   thinkingLevel?: ThinkingLevel;
   iterations: number;
-  averageScore: number;
+  average: RunStats;
   evals: Record<string, EvalDetail>;
 }
 
@@ -87,14 +86,6 @@ const INTERNAL_EVALS = new Set(['mcp-smoketest']);
 
 const EVAL_BASE_URL = 'https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals';
 
-function parseTimestamp(ts: string): string {
-  const match = ts.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})\.(\d+)Z$/);
-  if (match) {
-    return `${match[1]}T${match[2]}:${match[3]}:${match[4]}.${match[5]}Z`;
-  }
-  return ts;
-}
-
 function isTimestampDir(name: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T/.test(name);
 }
@@ -131,10 +122,9 @@ function parseVitestScore(output: string): number | null {
 const runResultSchema = z.looseObject({ duration: z.number().optional() });
 
 interface EvalRunsData {
-  score: number;
-  meanDuration: number;
   iterations: number;
-  runs: RunDetail[];
+  average: RunStats;
+  runs: RunStats[];
 }
 
 /**
@@ -154,14 +144,16 @@ async function collectEvalRuns(evalSrcDir: string, summary: SummaryJson): Promis
 
   if (runDirs.length === 0) {
     return {
-      score: summary.passedRuns > 0 ? 1 : 0,
-      meanDuration: summary.meanDuration,
       iterations: summary.totalRuns,
+      average: {
+        score: summary.passedRuns > 0 ? 1 : 0,
+        duration: summary.meanDuration,
+      },
       runs: [],
     };
   }
 
-  const runs: RunDetail[] = [];
+  const runs: RunStats[] = [];
   for (const runDir of runDirs) {
     let score = 0;
     try {
@@ -185,14 +177,13 @@ async function collectEvalRuns(evalSrcDir: string, summary: SummaryJson): Promis
   }
 
   const score = runs.reduce((sum, r) => sum + r.score, 0) / runs.length;
-  const durations = runs.map((r) => r.duration).filter((d): d is number => d != null);
-  const meanDuration =
+  const durations = runs.map((r) => r.duration).filter((d) => d != null);
+  const duration =
     durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : summary.meanDuration;
 
   return {
-    score,
-    meanDuration,
     iterations: runs.length,
+    average: { score, duration },
     runs,
   };
 }
@@ -226,8 +217,7 @@ async function collectExperimentEvals(
       iterations = Math.max(iterations, runsData.iterations);
 
       evals[evalDir] = {
-        score: runsData.score,
-        meanDuration: runsData.meanDuration,
+        average: runsData.average,
         runs: runsData.runs,
       };
       seenEvals.add(evalDir);
@@ -244,8 +234,16 @@ function buildVariant(
 ): VariantResult {
   const { thinkingLevel } = metadata.experimentMetadata;
   const evalList = Object.values(evals);
-  const averageScore = evalList.length > 0 ? evalList.reduce((sum, e) => sum + e.score, 0) / evalList.length : 0;
-  return { experimentName, ...(thinkingLevel ? { thinkingLevel } : {}), iterations, averageScore, evals };
+  const score = evalList.length > 0 ? evalList.reduce((sum, e) => sum + e.average.score, 0) / evalList.length : 0;
+  const durations = evalList.map((e) => e.average.duration).filter((d) => d != null);
+  const duration = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
+  return {
+    experimentName,
+    ...(thinkingLevel ? { thinkingLevel } : {}),
+    iterations,
+    average: { score, duration },
+    evals,
+  };
 }
 
 function getRequiredVariant(
@@ -365,7 +363,8 @@ const evals = evalNamesSet
 
 const summary: ExportedSummary = {
   version: 1,
-  timestamp: parseTimestamp(latestTs),
+  // agent-eval converts timestamps to have hyphens instead of colons to store on disk, this reverses that so we can parse the timestamp
+  timestamp: new Date(latestTs.replace(/^(.+T\d{2})-(\d{2})-(\d{2}\..+)$/, '$1:$2:$3')).toISOString(),
   evals,
   models,
 };
@@ -376,7 +375,7 @@ await writeFile(outputPath, `${JSON.stringify(summary, null, 2)}\n`);
 // Print stats
 const totalVariants = models.length * 3;
 const avgScore =
-  models.length > 0 ? models.reduce((sum, m) => sum + m.variants.baseline.averageScore, 0) / models.length : 0;
+  models.length > 0 ? models.reduce((sum, m) => sum + m.variants.baseline.average.score, 0) / models.length : 0;
 
 console.log('-'.repeat(60));
 console.log(`Exported to: ${relative(ROOT_DIR, outputPath)}`);
