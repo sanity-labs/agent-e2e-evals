@@ -4,7 +4,7 @@ import { redactSecrets } from './lib/redact-secrets.js';
 
 const config: ExperimentConfig = {
   agent: 'codex',
-  model: 'gpt-5.5',
+  model: 'gpt-5.5?reasoningEffort=medium',
   scripts: ['build'],
   runs: 16,
   earlyExit: false,

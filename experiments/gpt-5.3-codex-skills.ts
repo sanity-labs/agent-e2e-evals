@@ -4,7 +4,7 @@ import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.
 
 const config: ExperimentConfig = {
   agent: 'codex',
-  model: 'gpt-5.3-codex',
+  model: 'gpt-5.3-codex?reasoningEffort=medium',
   scripts: ['build'],
   runs: 16,
   earlyExit: false,

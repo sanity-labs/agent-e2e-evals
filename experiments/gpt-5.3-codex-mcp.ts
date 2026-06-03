@@ -4,7 +4,7 @@ import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
 
 const config: ExperimentConfig = {
   agent: 'codex',
-  model: 'gpt-5.3-codex',
+  model: 'gpt-5.3-codex?reasoningEffort=medium',
   scripts: ['build'],
   runs: 16,
   earlyExit: false,

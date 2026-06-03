@@ -9,6 +9,7 @@ const config: ExperimentConfig = {
   runs: 16,
   earlyExit: false,
   timeout: 1800,
+  agentOptions: { effort: 'high' },
   evals: nonMcpEvals,
   setup: createSanitySkillsSetup('claude-code'),
   onRunComplete: redactSecrets,
