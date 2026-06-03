@@ -9,7 +9,7 @@ index 74158bd3c9baf79b6758b58615a3affc9162ed63..21f0d618a554b2409be9f4f972e33f19
 +import pLimit from 'p-limit';
  import { getAgent } from './agents/index.js';
  import { agentResultToEvalRunData, createEvalSummary, createExperimentResults, saveResults, } from './results.js';
-+const MAX_CONCURRENT_RUNS = Number(process.env.AGENT_EVAL_MAX_CONCURRENCY) || 128;
++const MAX_CONCURRENT_RUNS = Number(process.env.AGENT_EVAL_MAX_CONCURRENCY) || 64;
 +const globalRunLimit = pLimit(MAX_CONCURRENT_RUNS);
  /**
   * Rate-limits how many operations can START within a time window.
