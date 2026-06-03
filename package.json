@@ -11,6 +11,7 @@
     "redact-results": "node scripts/redact-results.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "knip": "knip",
     "format": "oxfmt --check",
     "format:fix": "oxfmt"
   },
