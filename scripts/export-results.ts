@@ -28,7 +28,6 @@ interface RunDetail {
 
 interface EvalDetail {
   score: number;
-  evaluatedAt: string;
   meanDuration: number;
   runs: RunDetail[];
 }
@@ -49,7 +48,7 @@ interface ModelResult {
 
 interface ExportedSummary {
   version: 2;
-  generatedAt: string;
+  timestamp: string;
   evals: Array<{ name: string; displayName: string; url: string }>;
   models: ModelResult[];
 }
@@ -249,7 +248,6 @@ async function collectExperimentEvals(
 
       evals[evalDir] = {
         score: runsData.score,
-        evaluatedAt: parseTimestamp(tsDir),
         meanDuration: runsData.meanDuration,
         runs: runsData.runs,
       };
@@ -349,7 +347,7 @@ const evals = evalNamesSet
 
 const summary: ExportedSummary = {
   version: 2,
-  generatedAt: parseTimestamp(latestTs),
+  timestamp: parseTimestamp(latestTs),
   evals,
   models,
 };
