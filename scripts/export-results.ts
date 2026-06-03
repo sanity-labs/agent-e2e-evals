@@ -15,7 +15,7 @@ import {
   type LoadedExperimentMetadata,
   type ThinkingLevel,
   type VariantType,
-} from './lib/experiment-metadata.js';
+} from './lib/experiment-metadata.ts';
 
 interface SummaryJson {
   totalRuns: number;

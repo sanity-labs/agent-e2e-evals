@@ -6,7 +6,7 @@ import {
   type ExperimentMetadata,
   type ThinkingLevel,
   type VariantType,
-} from '../../experiments/lib/experiment-metadata.js';
+} from '../../experiments/lib/experiment-metadata.ts';
 
 export type { ThinkingLevel, VariantType };
 
