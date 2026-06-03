@@ -1,6 +1,14 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { redactSecrets } from './lib/redact-secrets.js';
 import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
+
+export const experimentMetadata = {
+  modelName: 'gpt-5.5',
+  displayName: 'GPT-5.5',
+  variant: 'skills',
+  thinkingLevel: 'medium',
+} satisfies ExperimentMetadata;
 
 const config: ExperimentConfig = {
   agent: 'codex',

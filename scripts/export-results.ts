@@ -9,6 +9,13 @@
  */
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { z } from 'zod';
+import {
+  loadExperimentMetadata,
+  type LoadedExperimentMetadata,
+  type ThinkingLevel,
+  type VariantType,
+} from './lib/experiment-metadata.js';
 
 interface SummaryJson {
   totalRuns: number;
@@ -18,8 +25,6 @@ interface SummaryJson {
   fingerprint?: string;
   valid?: boolean;
 }
-
-type VariantType = 'baseline' | 'mcp' | 'skills';
 
 interface RunDetail {
   score: number;
@@ -34,6 +39,7 @@ interface EvalDetail {
 
 interface VariantResult {
   experimentName: string;
+  thinkingLevel?: ThinkingLevel;
   iterations: number;
   averageScore: number;
   evals: Record<string, EvalDetail>;
@@ -54,6 +60,7 @@ interface ExportedSummary {
 }
 
 const ROOT_DIR = join(import.meta.dirname, '..');
+const EXPERIMENTS_DIR = join(ROOT_DIR, 'experiments');
 const RESULTS_DIR = join(ROOT_DIR, 'results');
 const PUBLISHED_DIR = join(ROOT_DIR, 'published');
 
@@ -65,20 +72,6 @@ const HARNESS_NAMES: Record<string, string> = {
   'vercel-ai-gateway/claude-code': 'Claude Code',
   'vercel-ai-gateway/codex': 'Codex',
   'vercel-ai-gateway/opencode': 'OpenCode',
-};
-
-const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'claude-opus-4.6': 'Claude Opus 4.6',
-  'claude-opus-4.7': 'Claude Opus 4.7',
-  'claude-opus-4.8': 'Claude Opus 4.8',
-  'claude-sonnet-4.6': 'Claude Sonnet 4.6',
-  'cursor-composer-2.0': 'Cursor Composer 2.0',
-  'cursor-composer-2.5': 'Cursor Composer 2.5',
-  'gemini-3.1-pro': 'Gemini 3.1 Pro',
-  'gemini-3.5-flash': 'Gemini 3.5 Flash',
-  'gpt-5.3-codex': 'GPT-5.3 Codex',
-  'gpt-5.4': 'GPT-5.4',
-  'gpt-5.5': 'GPT-5.5',
 };
 
 const EVAL_DISPLAY_NAMES: Record<string, string> = {
@@ -94,15 +87,6 @@ const INTERNAL_EVALS = new Set(['mcp-smoketest']);
 
 const EVAL_BASE_URL = 'https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals';
 
-function getBaseExperimentName(experimentName: string): string {
-  return experimentName.replace(/-(mcp|skills)$/, '');
-}
-
-function getDisplayName(experimentName: string): string {
-  const base = getBaseExperimentName(experimentName);
-  return MODEL_DISPLAY_NAMES[base] ?? base;
-}
-
 function parseTimestamp(ts: string): string {
   const match = ts.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})\.(\d+)Z$/);
   if (match) {
@@ -115,27 +99,13 @@ function isTimestampDir(name: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T/.test(name);
 }
 
-function isBaselineExperiment(experimentName: string): boolean {
-  return getBaseExperimentName(experimentName) === experimentName;
-}
-
 async function listSubdirs(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   return entries.filter((e) => e.isDirectory()).map((e) => e.name);
 }
 
-async function getAgentHarness(experiment: string): Promise<string> {
-  try {
-    const configPath = join('experiments', `${experiment}.ts`);
-    const content = await readFile(configPath, 'utf-8');
-    const match = content.match(/agent:\s*['"]([^'"]+)['"]/);
-    if (match?.[1]) {
-      return HARNESS_NAMES[match[1]] ?? match[1];
-    }
-  } catch {
-    // Config may have been removed; fall through.
-  }
-  return 'Unknown';
+function getAgentHarness(metadata: LoadedExperimentMetadata): string {
+  return HARNESS_NAMES[metadata.agent] ?? metadata.agent;
 }
 
 /**
@@ -157,6 +127,8 @@ function parseVitestScore(output: string): number | null {
 
   return passed / total;
 }
+
+const runResultSchema = z.looseObject({ duration: z.number().optional() });
 
 interface EvalRunsData {
   score: number;
@@ -201,8 +173,10 @@ async function collectEvalRuns(evalSrcDir: string, summary: SummaryJson): Promis
 
     let duration: number | null = null;
     try {
-      const result = JSON.parse(await readFile(join(evalSrcDir, runDir, 'result.json'), 'utf-8'));
-      duration = typeof result.duration === 'number' ? result.duration : null;
+      const result = runResultSchema.safeParse(
+        JSON.parse(await readFile(join(evalSrcDir, runDir, 'result.json'), 'utf-8')),
+      );
+      duration = result.success ? (result.data.duration ?? null) : null;
     } catch {
       // No result.json -> unknown duration.
     }
@@ -215,7 +189,12 @@ async function collectEvalRuns(evalSrcDir: string, summary: SummaryJson): Promis
   const meanDuration =
     durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : summary.meanDuration;
 
-  return { score, meanDuration, iterations: runs.length, runs };
+  return {
+    score,
+    meanDuration,
+    iterations: runs.length,
+    runs,
+  };
 }
 
 /**
@@ -260,17 +239,23 @@ async function collectExperimentEvals(
 
 function buildVariant(
   experimentName: string,
+  metadata: LoadedExperimentMetadata,
   { evals, iterations }: { evals: Record<string, EvalDetail>; iterations: number },
 ): VariantResult {
+  const { thinkingLevel } = metadata.experimentMetadata;
   const evalList = Object.values(evals);
   const averageScore = evalList.length > 0 ? evalList.reduce((sum, e) => sum + e.score, 0) / evalList.length : 0;
-  return { experimentName, iterations, averageScore, evals };
+  return { experimentName, ...(thinkingLevel ? { thinkingLevel } : {}), iterations, averageScore, evals };
 }
 
-function getRequiredVariant(variantsByExperiment: Map<string, VariantResult>, experimentName: string): VariantResult {
-  const variant = variantsByExperiment.get(experimentName);
+function getRequiredVariant(
+  variantsByType: Map<VariantType, VariantResult>,
+  modelName: string,
+  variantType: VariantType,
+): VariantResult {
+  const variant = variantsByType.get(variantType);
   if (!variant) {
-    throw new Error(`Missing valid results for required experiment variant: ${experimentName}`);
+    throw new Error(`Missing valid results for required experiment variant: ${modelName} ${variantType}`);
   }
   return variant;
 }
@@ -286,42 +271,75 @@ async function getLatestTimestamp(expDir: string): Promise<string | undefined> {
 
 // Discover all experiment directories with results
 const allExpDirs = (await listSubdirs(RESULTS_DIR)).filter((d) => !d.startsWith('_temp_'));
-const expWithTimestamps: Array<{ name: string; latestTs: string }> = [];
+const expWithTimestamps: Array<{ name: string; latestTs: string; metadata: LoadedExperimentMetadata }> = [];
 for (const dir of allExpDirs) {
   const ts = await getLatestTimestamp(join(RESULTS_DIR, dir));
-  if (ts) expWithTimestamps.push({ name: dir, latestTs: ts });
+  if (ts) {
+    expWithTimestamps.push({
+      name: dir,
+      latestTs: ts,
+      metadata: await loadExperimentMetadata(EXPERIMENTS_DIR, dir),
+    });
+  }
 }
 
 const experiments = expWithTimestamps.map((e) => e.name).sort();
+const metadataByExperiment = new Map(expWithTimestamps.map((e) => [e.name, e.metadata]));
 
 console.log(`Exporting ${experiments.length} experiment(s): ${experiments.join(', ') || '(none)'}`);
 
 // Collect evals for every experiment (baseline + variants)
-const variantsByExperiment = new Map<string, VariantResult>();
+const variantsByModel = new Map<string, Map<VariantType, VariantResult>>();
+const modelMetadata = new Map<string, LoadedExperimentMetadata>();
 for (const experiment of experiments) {
+  const metadata = metadataByExperiment.get(experiment);
+  if (!metadata) {
+    throw new Error(`Missing loaded metadata for experiment: ${experiment}`);
+  }
+
   const collected = await collectExperimentEvals(join(RESULTS_DIR, experiment));
   if (Object.keys(collected.evals).length === 0) {
     console.warn(`No valid results for: ${experiment}`);
     continue;
   }
-  variantsByExperiment.set(experiment, buildVariant(experiment, collected));
+
+  const { modelName, variant, displayName } = metadata.experimentMetadata;
+  const existingMetadata = modelMetadata.get(modelName);
+  if (existingMetadata && existingMetadata.experimentMetadata.displayName !== displayName) {
+    throw new Error(`Conflicting displayName metadata for model: ${modelName}`);
+  }
+  if (!existingMetadata || variant === 'baseline') {
+    modelMetadata.set(modelName, metadata);
+  }
+
+  let variants = variantsByModel.get(modelName);
+  if (!variants) {
+    variants = new Map();
+    variantsByModel.set(modelName, variants);
+  }
+  if (variants.has(variant)) {
+    throw new Error(`Duplicate ${variant} result metadata for model: ${modelName}`);
+  }
+  variants.set(variant, buildVariant(experiment, metadata, collected));
 }
 
-// Group baseline experiments with their -mcp/-skills counterparts
+// Group model experiments with their baseline/mcp/skills counterparts.
 const models: ModelResult[] = [];
-for (const experiment of experiments) {
-  if (!isBaselineExperiment(experiment)) continue;
-
-  const agentHarness = await getAgentHarness(experiment);
+for (const modelName of variantsByModel.keys().toArray().sort()) {
+  const variants = variantsByModel.get(modelName);
+  const metadata = modelMetadata.get(modelName);
+  if (!variants || !metadata) {
+    throw new Error(`Missing metadata for model: ${modelName}`);
+  }
 
   models.push({
-    name: experiment,
-    displayName: getDisplayName(experiment),
-    agentHarness,
+    name: modelName,
+    displayName: metadata.experimentMetadata.displayName,
+    agentHarness: getAgentHarness(metadata),
     variants: {
-      baseline: getRequiredVariant(variantsByExperiment, experiment),
-      mcp: getRequiredVariant(variantsByExperiment, `${experiment}-mcp`),
-      skills: getRequiredVariant(variantsByExperiment, `${experiment}-skills`),
+      baseline: getRequiredVariant(variants, modelName, 'baseline'),
+      mcp: getRequiredVariant(variants, modelName, 'mcp'),
+      skills: getRequiredVariant(variants, modelName, 'skills'),
     },
   });
 }
