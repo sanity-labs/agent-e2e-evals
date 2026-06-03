@@ -10,6 +10,7 @@ const config: ExperimentConfig = {
   timeout: 1200,
   evals: nonMcpEvals,
   setup: createSanitySkillsSetup('codex'),
+  onRunComplete: redactSecrets,
 };
 
 export default config;
