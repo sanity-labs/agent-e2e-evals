@@ -47,7 +47,7 @@ interface ModelResult {
 }
 
 interface ExportedSummary {
-  version: 2;
+  version: 1;
   timestamp: string;
   evals: Array<{ name: string; displayName: string; url: string }>;
   models: ModelResult[];
@@ -346,7 +346,7 @@ const evals = evalNamesSet
   .sort((a, b) => a.name.localeCompare(b.name));
 
 const summary: ExportedSummary = {
-  version: 2,
+  version: 1,
   timestamp: parseTimestamp(latestTs),
   evals,
   models,
