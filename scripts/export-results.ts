@@ -19,30 +19,39 @@ interface SummaryJson {
   valid?: boolean;
 }
 
-type EvalType = 'baseline' | 'mcp' | 'skills';
+type VariantType = 'baseline' | 'mcp' | 'skills';
 
-interface EvalResult {
-  name: string;
-  displayName: string;
-  url: string;
+interface RunDetail {
   score: number;
-  duration: number;
+  duration: number | null;
 }
 
-interface ExperimentResult {
+interface EvalDetail {
+  score: number;
+  evaluatedAt: string;
+  meanDuration: number;
+  runs: RunDetail[];
+}
+
+interface VariantResult {
+  experimentName: string;
+  iterations: number;
+  averageScore: number;
+  evals: Record<string, EvalDetail>;
+}
+
+interface ModelResult {
   name: string;
   displayName: string;
   agentHarness: string;
-  evalType: EvalType;
-  averageScore: number;
-  evals: EvalResult[];
+  variants: Record<VariantType, VariantResult>;
 }
 
 interface ExportedSummary {
-  version: 1;
-  timestamp: string;
-  evalNames: Array<{ name: string; displayName: string; url: string }>;
-  experiments: ExperimentResult[];
+  version: 2;
+  generatedAt: string;
+  evals: Array<{ name: string; displayName: string; url: string }>;
+  models: ModelResult[];
 }
 
 const ROOT_DIR = join(import.meta.dirname, '..');
@@ -86,12 +95,6 @@ const INTERNAL_EVALS = new Set(['mcp-smoketest']);
 
 const EVAL_BASE_URL = 'https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals';
 
-function getEvalType(experimentName: string): EvalType {
-  if (experimentName.endsWith('-skills')) return 'skills';
-  if (experimentName.endsWith('-mcp')) return 'mcp';
-  return 'baseline';
-}
-
 function getBaseExperimentName(experimentName: string): string {
   return experimentName.replace(/-(mcp|skills)$/, '');
 }
@@ -111,6 +114,10 @@ function parseTimestamp(ts: string): string {
 
 function isTimestampDir(name: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T/.test(name);
+}
+
+function isBaselineExperiment(experimentName: string): boolean {
+  return getBaseExperimentName(experimentName) === experimentName;
 }
 
 async function listSubdirs(dir: string): Promise<string[]> {
@@ -152,47 +159,78 @@ function parseVitestScore(output: string): number | null {
   return passed / total;
 }
 
+interface EvalRunsData {
+  score: number;
+  meanDuration: number;
+  iterations: number;
+  runs: RunDetail[];
+}
+
 /**
- * Compute the average assertion-level score across all runs in an eval directory.
- * Reads outputs/eval.txt from each run-N/ subdirectory to parse vitest results.
+ * Collect per-run details for a single eval directory.
+ *
+ * For each `run-N/` subdirectory we read:
+ *   - `outputs/eval.txt` -> per-run assertion score via `parseVitestScore`
+ *   - `result.json`      -> per-run `duration`
  *
  * A run that produced no parseable eval output (it timed out or crashed before
  * the assertions ran) counts as 0 — a timeout means the agent didn't finish in
  * time, which is a failure, not a run to silently drop. Falls back to the
  * binary pass/fail from summary.json only when there are no run directories.
  */
-async function computeEvalScore(evalSrcDir: string, summary: SummaryJson): Promise<number> {
+async function collectEvalRuns(evalSrcDir: string, summary: SummaryJson): Promise<EvalRunsData> {
   const runDirs = (await listSubdirs(evalSrcDir)).filter((e) => /^run-\d+$/.test(e)).sort();
 
   if (runDirs.length === 0) {
-    return summary.passedRuns > 0 ? 1 : 0;
+    return {
+      score: summary.passedRuns > 0 ? 1 : 0,
+      meanDuration: summary.meanDuration,
+      iterations: summary.totalRuns,
+      runs: [],
+    };
   }
 
-  const scores: number[] = [];
+  const runs: RunDetail[] = [];
   for (const runDir of runDirs) {
-    const evalOutputPath = join(evalSrcDir, runDir, 'outputs', 'eval.txt');
     let score = 0;
     try {
-      const output = await readFile(evalOutputPath, 'utf-8');
+      const output = await readFile(join(evalSrcDir, runDir, 'outputs', 'eval.txt'), 'utf-8');
       score = parseVitestScore(output) ?? 0;
     } catch {
       // No eval output for this run -> failed/timed-out run, scored as 0.
     }
-    scores.push(score);
+
+    let duration: number | null = null;
+    try {
+      const result = JSON.parse(await readFile(join(evalSrcDir, runDir, 'result.json'), 'utf-8'));
+      duration = typeof result.duration === 'number' ? result.duration : null;
+    } catch {
+      // No result.json -> unknown duration.
+    }
+
+    runs.push({ score, duration });
   }
 
-  return scores.reduce((a, b) => a + b, 0) / scores.length;
+  const score = runs.reduce((sum, r) => sum + r.score, 0) / runs.length;
+  const durations = runs.map((r) => r.duration).filter((d): d is number => d != null);
+  const meanDuration =
+    durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : summary.meanDuration;
+
+  return { score, meanDuration, iterations: runs.length, runs };
 }
 
 /**
  * For a given experiment, find all timestamp dirs sorted newest-first
  * and collect the latest valid result for each eval (merging across timestamps).
  */
-async function collectExperimentEvals(expDir: string): Promise<EvalResult[]> {
+async function collectExperimentEvals(
+  expDir: string,
+): Promise<{ evals: Record<string, EvalDetail>; iterations: number }> {
   const timestampDirs = (await listSubdirs(expDir)).filter(isTimestampDir).sort().reverse();
 
-  const results: EvalResult[] = [];
+  const evals: Record<string, EvalDetail> = {};
   const seenEvals = new Set<string>();
+  let iterations = 0;
 
   for (const tsDir of timestampDirs) {
     const tsPath = join(expDir, tsDir);
@@ -206,20 +244,37 @@ async function collectExperimentEvals(expDir: string): Promise<EvalResult[]> {
       const summary: SummaryJson = JSON.parse(await readFile(summaryPath, 'utf-8'));
       if (summary.valid === false) continue;
 
-      const score = await computeEvalScore(evalSrcDir, summary);
+      const runsData = await collectEvalRuns(evalSrcDir, summary);
+      iterations = Math.max(iterations, runsData.iterations);
 
-      results.push({
-        name: evalDir,
-        displayName: EVAL_DISPLAY_NAMES[evalDir] ?? evalDir,
-        url: `${EVAL_BASE_URL}/${evalDir}`,
-        score,
-        duration: summary.meanDuration,
-      });
+      evals[evalDir] = {
+        score: runsData.score,
+        evaluatedAt: parseTimestamp(tsDir),
+        meanDuration: runsData.meanDuration,
+        runs: runsData.runs,
+      };
       seenEvals.add(evalDir);
     }
   }
 
-  return results.sort((a, b) => a.name.localeCompare(b.name));
+  return { evals, iterations };
+}
+
+function buildVariant(
+  experimentName: string,
+  { evals, iterations }: { evals: Record<string, EvalDetail>; iterations: number },
+): VariantResult {
+  const evalList = Object.values(evals);
+  const averageScore = evalList.length > 0 ? evalList.reduce((sum, e) => sum + e.score, 0) / evalList.length : 0;
+  return { experimentName, iterations, averageScore, evals };
+}
+
+function getRequiredVariant(variantsByExperiment: Map<string, VariantResult>, experimentName: string): VariantResult {
+  const variant = variantsByExperiment.get(experimentName);
+  if (!variant) {
+    throw new Error(`Missing valid results for required experiment variant: ${experimentName}`);
+  }
+  return variant;
 }
 
 /**
@@ -243,35 +298,39 @@ const experiments = expWithTimestamps.map((e) => e.name).sort();
 
 console.log(`Exporting ${experiments.length} experiment(s): ${experiments.join(', ') || '(none)'}`);
 
-// Build the summary
-const experimentResults: ExperimentResult[] = [];
-
+// Collect evals for every experiment (baseline + variants)
+const variantsByExperiment = new Map<string, VariantResult>();
 for (const experiment of experiments) {
-  const expDir = join(RESULTS_DIR, experiment);
-
-  const evals = await collectExperimentEvals(expDir);
-  if (evals.length === 0) {
+  const collected = await collectExperimentEvals(join(RESULTS_DIR, experiment));
+  if (Object.keys(collected.evals).length === 0) {
     console.warn(`No valid results for: ${experiment}`);
     continue;
   }
+  variantsByExperiment.set(experiment, buildVariant(experiment, collected));
+}
+
+// Group baseline experiments with their -mcp/-skills counterparts
+const models: ModelResult[] = [];
+for (const experiment of experiments) {
+  if (!isBaselineExperiment(experiment)) continue;
 
   const agentHarness = await getAgentHarness(experiment);
-  const averageScore = evals.length > 0 ? evals.reduce((sum, e) => sum + e.score, 0) / evals.length : 0;
 
-  experimentResults.push({
+  models.push({
     name: experiment,
     displayName: getDisplayName(experiment),
     agentHarness,
-    evalType: getEvalType(experiment),
-    averageScore,
-    evals,
+    variants: {
+      baseline: getRequiredVariant(variantsByExperiment, experiment),
+      mcp: getRequiredVariant(variantsByExperiment, `${experiment}-mcp`),
+      skills: getRequiredVariant(variantsByExperiment, `${experiment}-skills`),
+    },
   });
 }
 
 // Use the global latest timestamp as the export directory name
 const latestTs =
   expWithTimestamps
-    .filter((e) => experiments.includes(e.name))
     .map((e) => e.latestTs)
     .sort()
     .at(-1) ?? new Date().toISOString().replace(/:/g, '-');
@@ -279,32 +338,33 @@ const latestTs =
 const exportDir = join(PUBLISHED_DIR, latestTs);
 await mkdir(exportDir, { recursive: true });
 
-const evalNamesSet = new Set<string>(experimentResults.flatMap((exp) => exp.evals.map((ev) => ev.name)));
-const evalNames = evalNamesSet
+const evalNamesSet = new Set(
+  models.flatMap((model) => Object.values(model.variants).flatMap((variant) => Object.keys(variant.evals))),
+);
+const evals = evalNamesSet
   .values()
   .map((name) => ({ name, displayName: EVAL_DISPLAY_NAMES[name] ?? name, url: `${EVAL_BASE_URL}/${name}` }))
-  .toArray();
+  .toArray()
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 const summary: ExportedSummary = {
-  version: 1,
-  timestamp: parseTimestamp(latestTs),
-  evalNames,
-  experiments: experimentResults,
+  version: 2,
+  generatedAt: parseTimestamp(latestTs),
+  evals,
+  models,
 };
 
 const outputPath = join(exportDir, 'summary.json');
 await writeFile(outputPath, `${JSON.stringify(summary, null, 2)}\n`);
 
 // Print stats
-const totalEvals = experimentResults.reduce((sum, exp) => sum + exp.evals.length, 0);
+const totalVariants = models.length * 3;
 const avgScore =
-  experimentResults.length > 0
-    ? experimentResults.reduce((sum, exp) => sum + exp.averageScore, 0) / experimentResults.length
-    : 0;
+  models.length > 0 ? models.reduce((sum, m) => sum + m.variants.baseline.averageScore, 0) / models.length : 0;
 
 console.log('-'.repeat(60));
 console.log(`Exported to: ${relative(ROOT_DIR, outputPath)}`);
 console.log(
-  `Experiments: ${experimentResults.length} | Evals: ${totalEvals} | Avg score: ${(avgScore * 100).toFixed(1)}%`,
+  `Models: ${models.length} | Variants: ${totalVariants} | Evals: ${evals.length} | Avg baseline score: ${(avgScore * 100).toFixed(1)}%`,
 );
 console.log('-'.repeat(60));
