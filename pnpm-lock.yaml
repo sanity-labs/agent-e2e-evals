@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@vercel/agent-eval@1.0.0': a28531ede7b502c80d36a58cbb33b463e23c9a6ab34d2a1d6a06b83ba473026a
+  '@vercel/agent-eval@1.0.0': f0c6aa11bc81d976b54d20397cbbfae7f1d48f75e2f95711104d7c082d3dfc84
 
 importers:
 
@@ -16,7 +16,7 @@ importers:
         version: 24.12.2
       '@vercel/agent-eval':
         specifier: ^1.0.0
-        version: 1.0.0(patch_hash=a28531ede7b502c80d36a58cbb33b463e23c9a6ab34d2a1d6a06b83ba473026a)
+        version: 1.0.0(patch_hash=f0c6aa11bc81d976b54d20397cbbfae7f1d48f75e2f95711104d7c082d3dfc84)
       map-obj:
         specifier: ^6.0.0
         version: 6.0.0
@@ -1721,11 +1721,7 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
-<<<<<<< HEAD
-  '@vercel/agent-eval@1.0.0(patch_hash=a52ebfcb5b1797bb407716b0070d3262bc2612c33bf20a5741814c4016349303)':
-=======
-  '@vercel/agent-eval@1.0.0(patch_hash=a28531ede7b502c80d36a58cbb33b463e23c9a6ab34d2a1d6a06b83ba473026a)':
->>>>>>> 9cd8fbd (fix: decrease concurrency from 128 to 64)
+  '@vercel/agent-eval@1.0.0(patch_hash=f0c6aa11bc81d976b54d20397cbbfae7f1d48f75e2f95711104d7c082d3dfc84)':
     dependencies:
       '@ai-sdk/anthropic': 1.2.12(zod@3.25.76)
       '@vercel/sandbox': 1.10.2
