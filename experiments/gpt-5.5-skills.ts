@@ -1,4 +1,5 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import { redactSecrets } from './lib/redact-secrets.js';
 import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
 
 const config: ExperimentConfig = {
