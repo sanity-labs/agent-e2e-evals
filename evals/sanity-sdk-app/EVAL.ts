@@ -78,14 +78,14 @@ test('does not import hooks that @sanity/sdk-react does not export', () => {
   for (const match of dts.matchAll(
     /^export declare (?:abstract )?(?:function|const|class|interface|type|enum|let|var) (\w+)/gm,
   )) {
-    exported.add(match[1]);
+    if (match[1]) exported.add(match[1]);
   }
   for (const match of dts.matchAll(/^export \{([^}]+)\}/gm)) {
-    for (const rawName of match[1].split(',')) {
+    for (const rawName of (match[1] ?? '').split(',')) {
       const name = rawName.trim().replace(/^type\s+/, '');
       if (!name) continue;
-      const parts = name.split(/\s+as\s+/);
-      exported.add(parts[parts.length - 1].trim());
+      const alias = name.split(/\s+as\s+/).at(-1);
+      if (alias) exported.add(alias.trim());
     }
   }
 
@@ -93,10 +93,11 @@ test('does not import hooks that @sanity/sdk-react does not export', () => {
   const imported = new Set<string>();
   const importRegex = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]@sanity\/sdk-react['"]/g;
   for (const match of source.matchAll(importRegex)) {
-    for (const rawName of match[1].split(',')) {
+    for (const rawName of (match[1] ?? '').split(',')) {
       const name = rawName.trim();
       if (!name || name.startsWith('type ')) continue;
-      imported.add(name.split(/\s+as\s+/)[0].trim());
+      const local = name.split(/\s+as\s+/).at(0);
+      if (local) imported.add(local.trim());
     }
   }
 
