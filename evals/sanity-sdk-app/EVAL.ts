@@ -25,13 +25,7 @@ import { test, expect } from 'vitest';
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 
 /** Hooks that read documents from a dataset */
-const DATA_HOOKS = [
-  'useDocuments',
-  'usePaginatedDocuments',
-  'useDocumentProjection',
-  'useDocument',
-  'useQuery',
-];
+const DATA_HOOKS = ['useDocuments', 'usePaginatedDocuments', 'useDocumentProjection', 'useDocument', 'useQuery'];
 
 /** Hooks that write/edit documents */
 const EDIT_HOOKS = ['useEditDocument', 'useApplyDocumentActions'];
