@@ -1,5 +1,6 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
 import { baseSetup, nonMcpEvals } from './lib/base-setup.js';
+import { withGeminiWorkspaceTrust } from './lib/gemini-trust-setup.js';
 import { redactSecrets } from './lib/redact-secrets.js';
 
 const config: ExperimentConfig = {
@@ -10,7 +11,7 @@ const config: ExperimentConfig = {
   earlyExit: false,
   timeout: 1800,
   evals: nonMcpEvals,
-  setup: baseSetup,
+  setup: withGeminiWorkspaceTrust(baseSetup),
   onRunComplete: redactSecrets,
 };
 

@@ -1,4 +1,5 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import { withGeminiWorkspaceTrust } from './lib/gemini-trust-setup.js';
 import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
 
 const config: ExperimentConfig = {
@@ -9,7 +10,7 @@ const config: ExperimentConfig = {
   earlyExit: false,
   timeout: 1800,
   evals: nonMcpEvals,
-  setup: createSanitySkillsSetup('gemini'),
+  setup: withGeminiWorkspaceTrust(createSanitySkillsSetup('gemini')),
 };
 
 export default config;
