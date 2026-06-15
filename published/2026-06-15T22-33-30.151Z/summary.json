@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": "2026-06-05T00:18:00.384Z",
+  "timestamp": "2026-06-15T22:33:30.151Z",
   "evals": [
     {
       "name": "sanity-groq",
@@ -23,6 +23,11 @@
       "url": "https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals/sanity-presentation"
     },
     {
+      "name": "sanity-sdk-app",
+      "displayName": "SDK App",
+      "url": "https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals/sanity-sdk-app"
+    },
+    {
       "name": "sanity-typegen",
       "displayName": "TypeGen",
       "url": "https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals/sanity-typegen"
@@ -39,10 +44,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9464285714285715,
-            "duration": 437.85628750000006
+            "score": 0.9538690476190478,
+            "duration": 410.43425
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9910714285714286,
+                "duration": 273.3240625
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 262.139
+                },
+                {
+                  "score": 1,
+                  "duration": 351.321
+                },
+                {
+                  "score": 1,
+                  "duration": 249.888
+                },
+                {
+                  "score": 1,
+                  "duration": 286.726
+                },
+                {
+                  "score": 1,
+                  "duration": 236.085
+                },
+                {
+                  "score": 1,
+                  "duration": 286.286
+                },
+                {
+                  "score": 1,
+                  "duration": 276.429
+                },
+                {
+                  "score": 1,
+                  "duration": 267.201
+                },
+                {
+                  "score": 1,
+                  "duration": 272.415
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 241.125
+                },
+                {
+                  "score": 1,
+                  "duration": 279.031
+                },
+                {
+                  "score": 1,
+                  "duration": 263.684
+                },
+                {
+                  "score": 1,
+                  "duration": 258.108
+                },
+                {
+                  "score": 1,
+                  "duration": 259.744
+                },
+                {
+                  "score": 1,
+                  "duration": 323.021
+                },
+                {
+                  "score": 1,
+                  "duration": 259.982
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -410,10 +487,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9702380952380952,
-            "duration": 478.86015
+            "score": 0.9647817460317462,
+            "duration": 437.4966770833333
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9375000000000001,
+                "duration": 230.6793125
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 255.508
+                },
+                {
+                  "score": 1,
+                  "duration": 256.258
+                },
+                {
+                  "score": 1,
+                  "duration": 245.083
+                },
+                {
+                  "score": 1,
+                  "duration": 242.996
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 243.985
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 235.622
+                },
+                {
+                  "score": 1,
+                  "duration": 238.941
+                },
+                {
+                  "score": 1,
+                  "duration": 242.984
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 210.86
+                },
+                {
+                  "score": 1,
+                  "duration": 213.927
+                },
+                {
+                  "score": 1,
+                  "duration": 210.887
+                },
+                {
+                  "score": 1,
+                  "duration": 227.133
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 217.869
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 216.535
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 224.086
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 208.195
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -781,10 +930,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9505952380952382,
-            "duration": 467.9113125
+            "score": 0.9588293650793652,
+            "duration": 434.3422083333333
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 266.4966875
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 243.263
+                },
+                {
+                  "score": 1,
+                  "duration": 227.142
+                },
+                {
+                  "score": 1,
+                  "duration": 288.46
+                },
+                {
+                  "score": 1,
+                  "duration": 547.226
+                },
+                {
+                  "score": 1,
+                  "duration": 231.931
+                },
+                {
+                  "score": 1,
+                  "duration": 238.404
+                },
+                {
+                  "score": 1,
+                  "duration": 248.714
+                },
+                {
+                  "score": 1,
+                  "duration": 332.39
+                },
+                {
+                  "score": 1,
+                  "duration": 234.592
+                },
+                {
+                  "score": 1,
+                  "duration": 255.503
+                },
+                {
+                  "score": 1,
+                  "duration": 229.682
+                },
+                {
+                  "score": 1,
+                  "duration": 230.664
+                },
+                {
+                  "score": 1,
+                  "duration": 261.943
+                },
+                {
+                  "score": 1,
+                  "duration": 240.983
+                },
+                {
+                  "score": 1,
+                  "duration": 233.917
+                },
+                {
+                  "score": 1,
+                  "duration": 219.133
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -1159,10 +1380,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9226190476190477,
-            "duration": 408.2183625
+            "score": 0.935515873015873,
+            "duration": 385.1704375
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 269.9308125
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 268.712
+                },
+                {
+                  "score": 1,
+                  "duration": 256.11
+                },
+                {
+                  "score": 1,
+                  "duration": 245.62
+                },
+                {
+                  "score": 1,
+                  "duration": 322.238
+                },
+                {
+                  "score": 1,
+                  "duration": 256.111
+                },
+                {
+                  "score": 1,
+                  "duration": 236.859
+                },
+                {
+                  "score": 1,
+                  "duration": 243.648
+                },
+                {
+                  "score": 1,
+                  "duration": 278.649
+                },
+                {
+                  "score": 1,
+                  "duration": 252.176
+                },
+                {
+                  "score": 1,
+                  "duration": 360.739
+                },
+                {
+                  "score": 1,
+                  "duration": 252.314
+                },
+                {
+                  "score": 1,
+                  "duration": 289.744
+                },
+                {
+                  "score": 1,
+                  "duration": 247.398
+                },
+                {
+                  "score": 1,
+                  "duration": 299.726
+                },
+                {
+                  "score": 1,
+                  "duration": 260.599
+                },
+                {
+                  "score": 1,
+                  "duration": 248.25
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -1530,10 +1823,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9443452380952382,
-            "duration": 412.1471
+            "score": 0.9536210317460317,
+            "duration": 383.86011458333337
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 242.42518750000005
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 234.345
+                },
+                {
+                  "score": 1,
+                  "duration": 246.301
+                },
+                {
+                  "score": 1,
+                  "duration": 228.379
+                },
+                {
+                  "score": 1,
+                  "duration": 249.855
+                },
+                {
+                  "score": 1,
+                  "duration": 233.376
+                },
+                {
+                  "score": 1,
+                  "duration": 246.491
+                },
+                {
+                  "score": 1,
+                  "duration": 231.551
+                },
+                {
+                  "score": 1,
+                  "duration": 268.01
+                },
+                {
+                  "score": 1,
+                  "duration": 235.129
+                },
+                {
+                  "score": 1,
+                  "duration": 233.818
+                },
+                {
+                  "score": 1,
+                  "duration": 245.59
+                },
+                {
+                  "score": 1,
+                  "duration": 248.135
+                },
+                {
+                  "score": 1,
+                  "duration": 237.726
+                },
+                {
+                  "score": 1,
+                  "duration": 241.88
+                },
+                {
+                  "score": 1,
+                  "duration": 241.79
+                },
+                {
+                  "score": 1,
+                  "duration": 256.427
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -1901,10 +2266,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9339285714285716,
-            "duration": 438.6734125
+            "score": 0.9449404761904763,
+            "duration": 405.6066666666666
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 240.27293749999995
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 253.161
+                },
+                {
+                  "score": 1,
+                  "duration": 256.648
+                },
+                {
+                  "score": 1,
+                  "duration": 267.264
+                },
+                {
+                  "score": 1,
+                  "duration": 236.079
+                },
+                {
+                  "score": 1,
+                  "duration": 232.46
+                },
+                {
+                  "score": 1,
+                  "duration": 215.742
+                },
+                {
+                  "score": 1,
+                  "duration": 225.135
+                },
+                {
+                  "score": 1,
+                  "duration": 216.304
+                },
+                {
+                  "score": 1,
+                  "duration": 272.819
+                },
+                {
+                  "score": 1,
+                  "duration": 235.725
+                },
+                {
+                  "score": 1,
+                  "duration": 239.287
+                },
+                {
+                  "score": 1,
+                  "duration": 233.374
+                },
+                {
+                  "score": 1,
+                  "duration": 274.124
+                },
+                {
+                  "score": 1,
+                  "duration": 228.398
+                },
+                {
+                  "score": 1,
+                  "duration": 225.267
+                },
+                {
+                  "score": 1,
+                  "duration": 232.58
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -2279,10 +2716,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.8946428571428571,
-            "duration": 574.7138625
+            "score": 0.9122023809523809,
+            "duration": 527.7718020833333
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 293.06149999999997
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 275.368
+                },
+                {
+                  "score": 1,
+                  "duration": 268.758
+                },
+                {
+                  "score": 1,
+                  "duration": 303.269
+                },
+                {
+                  "score": 1,
+                  "duration": 297.328
+                },
+                {
+                  "score": 1,
+                  "duration": 297.346
+                },
+                {
+                  "score": 1,
+                  "duration": 290.475
+                },
+                {
+                  "score": 1,
+                  "duration": 342.438
+                },
+                {
+                  "score": 1,
+                  "duration": 331.589
+                },
+                {
+                  "score": 1,
+                  "duration": 231.487
+                },
+                {
+                  "score": 1,
+                  "duration": 277.037
+                },
+                {
+                  "score": 1,
+                  "duration": 248.245
+                },
+                {
+                  "score": 1,
+                  "duration": 288.869
+                },
+                {
+                  "score": 1,
+                  "duration": 246.146
+                },
+                {
+                  "score": 1,
+                  "duration": 351.44
+                },
+                {
+                  "score": 1,
+                  "duration": 375.655
+                },
+                {
+                  "score": 1,
+                  "duration": 263.534
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -2650,10 +3159,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9336309523809524,
-            "duration": 620.8667625
+            "score": 0.9446924603174605,
+            "duration": 572.3861354166667
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 329.983
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 358.79
+                },
+                {
+                  "score": 1,
+                  "duration": 241.339
+                },
+                {
+                  "score": 1,
+                  "duration": 386.287
+                },
+                {
+                  "score": 1,
+                  "duration": 299.741
+                },
+                {
+                  "score": 1,
+                  "duration": 285.237
+                },
+                {
+                  "score": 1,
+                  "duration": 342.76
+                },
+                {
+                  "score": 1,
+                  "duration": 251.031
+                },
+                {
+                  "score": 1,
+                  "duration": 289.46
+                },
+                {
+                  "score": 1,
+                  "duration": 292.854
+                },
+                {
+                  "score": 1,
+                  "duration": 269.482
+                },
+                {
+                  "score": 1,
+                  "duration": 268.303
+                },
+                {
+                  "score": 1,
+                  "duration": 436.913
+                },
+                {
+                  "score": 1,
+                  "duration": 369.694
+                },
+                {
+                  "score": 1,
+                  "duration": 570.456
+                },
+                {
+                  "score": 1,
+                  "duration": 300.335
+                },
+                {
+                  "score": 1,
+                  "duration": 317.046
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -3021,10 +3602,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9610119047619048,
-            "duration": 584.32595
+            "score": 0.9675099206349206,
+            "duration": 528.3846666666667
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 248.67825
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 270.249
+                },
+                {
+                  "score": 1,
+                  "duration": 230.014
+                },
+                {
+                  "score": 1,
+                  "duration": 251.283
+                },
+                {
+                  "score": 1,
+                  "duration": 246.883
+                },
+                {
+                  "score": 1,
+                  "duration": 248.747
+                },
+                {
+                  "score": 1,
+                  "duration": 253.732
+                },
+                {
+                  "score": 1,
+                  "duration": 243.264
+                },
+                {
+                  "score": 1,
+                  "duration": 244.409
+                },
+                {
+                  "score": 1,
+                  "duration": 326.911
+                },
+                {
+                  "score": 1,
+                  "duration": 225.183
+                },
+                {
+                  "score": 1,
+                  "duration": 245.464
+                },
+                {
+                  "score": 1,
+                  "duration": 220.799
+                },
+                {
+                  "score": 1,
+                  "duration": 248.999
+                },
+                {
+                  "score": 1,
+                  "duration": 241.015
+                },
+                {
+                  "score": 1,
+                  "duration": 256.347
+                },
+                {
+                  "score": 1,
+                  "duration": 225.553
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -3399,10 +4052,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9104166666666668,
-            "duration": 554.7288000000001
+            "score": 0.917906746031746,
+            "duration": 517.3175
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9553571428571429,
+                "duration": 330.261
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 332.134
+                },
+                {
+                  "score": 1,
+                  "duration": 352.827
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 295.895
+                },
+                {
+                  "score": 1,
+                  "duration": 359.656
+                },
+                {
+                  "score": 1,
+                  "duration": 324.796
+                },
+                {
+                  "score": 1,
+                  "duration": 283.916
+                },
+                {
+                  "score": 1,
+                  "duration": 341.52
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 259.597
+                },
+                {
+                  "score": 1,
+                  "duration": 340.926
+                },
+                {
+                  "score": 1,
+                  "duration": 326.472
+                },
+                {
+                  "score": 1,
+                  "duration": 374.966
+                },
+                {
+                  "score": 1,
+                  "duration": 288.288
+                },
+                {
+                  "score": 1,
+                  "duration": 390.265
+                },
+                {
+                  "score": 1,
+                  "duration": 288.406
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 405.667
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 318.845
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -3770,10 +4495,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.9494047619047621,
-            "duration": 490.68206250000003
+            "score": 0.9280753968253969,
+            "duration": 447.63095833333335
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8214285714285713,
+                "duration": 232.37543750000003
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 211.884
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 228.126
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 259.859
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 234.246
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 222.634
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 253.938
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 243.843
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 239.679
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 224.131
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 240.739
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 256.349
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 201.968
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 210.175
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 228.933
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 228.083
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 233.42
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -4141,10 +4938,82 @@
           "thinkingLevel": "high",
           "iterations": 16,
           "average": {
-            "score": 0.8636904761904762,
-            "duration": 488.80313750000005
+            "score": 0.8834325396825397,
+            "duration": 443.74421875
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9821428571428572,
+                "duration": 218.44962500000003
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 215.93
+                },
+                {
+                  "score": 1,
+                  "duration": 210.708
+                },
+                {
+                  "score": 1,
+                  "duration": 232.531
+                },
+                {
+                  "score": 1,
+                  "duration": 196.828
+                },
+                {
+                  "score": 1,
+                  "duration": 203.719
+                },
+                {
+                  "score": 1,
+                  "duration": 218.228
+                },
+                {
+                  "score": 1,
+                  "duration": 218.049
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 209.129
+                },
+                {
+                  "score": 1,
+                  "duration": 223.527
+                },
+                {
+                  "score": 1,
+                  "duration": 221.116
+                },
+                {
+                  "score": 1,
+                  "duration": 215.464
+                },
+                {
+                  "score": 1,
+                  "duration": 233.141
+                },
+                {
+                  "score": 1,
+                  "duration": 227.233
+                },
+                {
+                  "score": 1,
+                  "duration": 229.87
+                },
+                {
+                  "score": 1,
+                  "duration": 229.535
+                },
+                {
+                  "score": 1,
+                  "duration": 210.186
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -4518,10 +5387,82 @@
           "experimentName": "cursor-composer-2.5",
           "iterations": 16,
           "average": {
-            "score": 0.984577922077922,
-            "duration": 360.69972500000006
+            "score": 0.9871482683982684,
+            "duration": 334.19727083333333
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 201.68500000000006
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 200.452
+                },
+                {
+                  "score": 1,
+                  "duration": 192.398
+                },
+                {
+                  "score": 1,
+                  "duration": 208.916
+                },
+                {
+                  "score": 1,
+                  "duration": 190.065
+                },
+                {
+                  "score": 1,
+                  "duration": 197.924
+                },
+                {
+                  "score": 1,
+                  "duration": 210.905
+                },
+                {
+                  "score": 1,
+                  "duration": 210.687
+                },
+                {
+                  "score": 1,
+                  "duration": 199.932
+                },
+                {
+                  "score": 1,
+                  "duration": 196.623
+                },
+                {
+                  "score": 1,
+                  "duration": 204.133
+                },
+                {
+                  "score": 1,
+                  "duration": 196.521
+                },
+                {
+                  "score": 1,
+                  "duration": 204.902
+                },
+                {
+                  "score": 1,
+                  "duration": 202.956
+                },
+                {
+                  "score": 1,
+                  "duration": 219.081
+                },
+                {
+                  "score": 1,
+                  "duration": 189.306
+                },
+                {
+                  "score": 1,
+                  "duration": 202.159
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9943181818181819,
@@ -4888,10 +5829,82 @@
           "experimentName": "cursor-composer-2.5-mcp",
           "iterations": 16,
           "average": {
-            "score": 0.9863636363636363,
-            "duration": 318.8764
+            "score": 0.9886363636363636,
+            "duration": 300.9370104166667
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 211.24006250000002
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 200.062
+                },
+                {
+                  "score": 1,
+                  "duration": 220.133
+                },
+                {
+                  "score": 1,
+                  "duration": 225.898
+                },
+                {
+                  "score": 1,
+                  "duration": 222.374
+                },
+                {
+                  "score": 1,
+                  "duration": 213.543
+                },
+                {
+                  "score": 1,
+                  "duration": 201.096
+                },
+                {
+                  "score": 1,
+                  "duration": 205.658
+                },
+                {
+                  "score": 1,
+                  "duration": 229.28
+                },
+                {
+                  "score": 1,
+                  "duration": 198.399
+                },
+                {
+                  "score": 1,
+                  "duration": 199.678
+                },
+                {
+                  "score": 1,
+                  "duration": 211.559
+                },
+                {
+                  "score": 1,
+                  "duration": 196.546
+                },
+                {
+                  "score": 1,
+                  "duration": 202.138
+                },
+                {
+                  "score": 1,
+                  "duration": 220.786
+                },
+                {
+                  "score": 1,
+                  "duration": 219.373
+                },
+                {
+                  "score": 1,
+                  "duration": 213.318
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9943181818181819,
@@ -5258,10 +6271,82 @@
           "experimentName": "cursor-composer-2.5-skills",
           "iterations": 16,
           "average": {
-            "score": 0.9770833333333334,
-            "duration": 384.49064999999996
+            "score": 0.9809027777777778,
+            "duration": 356.17958333333337
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 1,
+                "duration": 214.62425000000002
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 225.988
+                },
+                {
+                  "score": 1,
+                  "duration": 219.551
+                },
+                {
+                  "score": 1,
+                  "duration": 217.366
+                },
+                {
+                  "score": 1,
+                  "duration": 212.972
+                },
+                {
+                  "score": 1,
+                  "duration": 202.526
+                },
+                {
+                  "score": 1,
+                  "duration": 214.291
+                },
+                {
+                  "score": 1,
+                  "duration": 212.375
+                },
+                {
+                  "score": 1,
+                  "duration": 212.498
+                },
+                {
+                  "score": 1,
+                  "duration": 198.743
+                },
+                {
+                  "score": 1,
+                  "duration": 245.017
+                },
+                {
+                  "score": 1,
+                  "duration": 200.829
+                },
+                {
+                  "score": 1,
+                  "duration": 208.177
+                },
+                {
+                  "score": 1,
+                  "duration": 201.359
+                },
+                {
+                  "score": 1,
+                  "duration": 200.83
+                },
+                {
+                  "score": 1,
+                  "duration": 229.733
+                },
+                {
+                  "score": 1,
+                  "duration": 231.733
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -5635,10 +6720,82 @@
           "experimentName": "gemini-3.1-pro",
           "iterations": 16,
           "average": {
-            "score": 0.8875,
-            "duration": 638.4922875
+            "score": 0.8839285714285715,
+            "duration": 595.5708229166665
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8660714285714286,
+                "duration": 380.9635
+              },
+              "runs": [
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 445.016
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 381.515
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 281.784
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 363.924
+                },
+                {
+                  "score": 1,
+                  "duration": 397.983
+                },
+                {
+                  "score": 1,
+                  "duration": 285.795
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 368.409
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 388.33
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 283.337
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 382.459
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 644.921
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 376.841
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 271.681
+                },
+                {
+                  "score": 1,
+                  "duration": 411.723
+                },
+                {
+                  "score": 1,
+                  "duration": 390.665
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 421.033
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -6005,10 +7162,82 @@
           "experimentName": "gemini-3.1-pro-mcp",
           "iterations": 16,
           "average": {
-            "score": 0.9099837662337663,
-            "duration": 861.7554
+            "score": 0.9041531385281384,
+            "duration": 763.44515625
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.875,
+                "duration": 271.89393749999994
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 277.686
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 246.09
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 261.015
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 309.099
+                },
+                {
+                  "score": 1,
+                  "duration": 384.637
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 242.233
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 279.186
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 254.338
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 268.238
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 261.98
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 255.232
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 277.138
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 263.331
+                },
+                {
+                  "score": 1,
+                  "duration": 270.215
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 247.927
+                },
+                {
+                  "score": 1,
+                  "duration": 251.958
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9829545454545454,
@@ -6375,10 +7604,82 @@
           "experimentName": "gemini-3.1-pro-skills",
           "iterations": 16,
           "average": {
-            "score": 0.6821969696969696,
-            "duration": 895.0567500000001
+            "score": 0.7128427128427129,
+            "duration": 808.7967604166669
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8660714285714287,
+                "duration": 377.49681250000003
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 400.751
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 409.078
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 384.684
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 394.677
+                },
+                {
+                  "score": 1,
+                  "duration": 403.492
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 376.173
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 301.701
+                },
+                {
+                  "score": 1,
+                  "duration": 382.347
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 284.51
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 373.611
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 407.582
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 356.437
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 375.518
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 381.122
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 420.268
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 387.998
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9943181818181818,
@@ -6752,10 +8053,82 @@
           "experimentName": "gemini-3.5-flash",
           "iterations": 16,
           "average": {
-            "score": 0.43812229437229433,
-            "duration": 1254.00885
+            "score": 0.5020066738816739,
+            "duration": 1107.4595520833334
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8214285714285715,
+                "duration": 374.7130625
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 255.094
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 315.125
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 446.085
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 320.893
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 346.422
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 442.54
+                },
+                {
+                  "score": 1,
+                  "duration": 335.419
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 520.644
+                },
+                {
+                  "score": 1,
+                  "duration": 392.986
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 434.853
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 324.36
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 386.182
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 367.831
+                },
+                {
+                  "score": 0.42857142857142855,
+                  "duration": 342.395
+                },
+                {
+                  "score": 1,
+                  "duration": 403.207
+                },
+                {
+                  "score": 1,
+                  "duration": 361.373
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9034090909090908,
@@ -7122,10 +8495,82 @@
           "experimentName": "gemini-3.5-flash-mcp",
           "iterations": 16,
           "average": {
-            "score": 0.5855790043290043,
-            "duration": 1128.51995
+            "score": 0.6293515512265512,
+            "duration": 1041.9451979166668
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8482142857142857,
+                "duration": 609.0714374999999
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 364.004
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 453.376
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 1260.435
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 297.812
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 331.056
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 369.071
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 322.819
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 376.322
+                },
+                {
+                  "score": 1,
+                  "duration": 563.087
+                },
+                {
+                  "score": 1,
+                  "duration": 721.238
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 1311.716
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 386.642
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 505.22
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 527.201
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 1506.898
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 448.246
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.7954545454545454,
@@ -7492,10 +8937,82 @@
           "experimentName": "gemini-3.5-flash-skills",
           "iterations": 16,
           "average": {
-            "score": 0.40192099567099554,
-            "duration": 1280.198
+            "score": 0.515726461038961,
+            "duration": 1061.51053125
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8571428571428571,
+                "duration": 405.44812500000006
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 369.851
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 306.814
+                },
+                {
+                  "score": 1,
+                  "duration": 279.036
+                },
+                {
+                  "score": 1,
+                  "duration": 277.314
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 343.515
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 390.438
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 402.322
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 564.864
+                },
+                {
+                  "score": 1,
+                  "duration": 344.384
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 1089.923
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 422.127
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 310.782
+                },
+                {
+                  "score": 1,
+                  "duration": 359.786
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 383.379
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 304.194
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 338.441
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9602272727272725,
@@ -7726,10 +9243,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9551677489177489,
-            "duration": 326.36307500000004
+            "score": 0.9165088383838383,
+            "duration": 307.9121979166667
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.7232142857142857,
+                "duration": 215.65781249999998
+              },
+              "runs": [
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 208.507
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 210.298
+                },
+                {
+                  "score": 0.42857142857142855,
+                  "duration": 229.328
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 217.582
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 236.658
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 205.59
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 205.589
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 206.892
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 218.216
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 211.52
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 209.982
+                },
+                {
+                  "score": 1,
+                  "duration": 227.368
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 212.966
+                },
+                {
+                  "score": 0.42857142857142855,
+                  "duration": 225.554
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 212.601
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 211.874
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9886363636363635,
@@ -8097,10 +9686,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9497564935064936,
-            "duration": 356.52139999999997
+            "score": 0.9060470779220778,
+            "duration": 335.36558333333335
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.6874999999999999,
+                "duration": 229.5865
+              },
+              "runs": [
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 240.299
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 272.772
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 216.484
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 227.176
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 235.008
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 235.095
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 231.839
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 238.805
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 219.379
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 215.555
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 213.806
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 238.584
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 221.918
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 221.758
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 223.905
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 221.001
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9943181818181818,
@@ -8468,10 +10129,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9718885281385281,
-            "duration": 372.9537375
+            "score": 0.9572285353535354,
+            "duration": 348.5426770833333
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8839285714285713,
+                "duration": 226.48737500000001
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 214.516
+                },
+                {
+                  "score": 1,
+                  "duration": 226.483
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 203.785
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 245.855
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 228.377
+                },
+                {
+                  "score": 1,
+                  "duration": 222.816
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 229.741
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 221.074
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 229.872
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 241.169
+                },
+                {
+                  "score": 1,
+                  "duration": 212.341
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 218.751
+                },
+                {
+                  "score": 1,
+                  "duration": 224.487
+                },
+                {
+                  "score": 1,
+                  "duration": 225.046
+                },
+                {
+                  "score": 1,
+                  "duration": 223.672
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 255.813
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9829545454545454,
@@ -8846,10 +10579,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9775974025974026,
-            "duration": 411.76828750000004
+            "score": 0.9545454545454546,
+            "duration": 381.48327083333334
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8392857142857143,
+                "duration": 230.05818750000003
+              },
+              "runs": [
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 233.259
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 240.963
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 231.05
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 241.756
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 215.997
+                },
+                {
+                  "score": 1,
+                  "duration": 255.38
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 199.016
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 237.078
+                },
+                {
+                  "score": 1,
+                  "duration": 191.822
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 242.938
+                },
+                {
+                  "score": 1,
+                  "duration": 215.686
+                },
+                {
+                  "score": 1,
+                  "duration": 252.01
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 247.295
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 209.416
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 247.148
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 220.117
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9772727272727272,
@@ -9217,10 +11022,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9703192640692639,
-            "duration": 499.75921249999993
+            "score": 0.9440160533910533,
+            "duration": 456.7671666666666
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8124999999999999,
+                "duration": 241.80693750000003
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 219.325
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 221.862
+                },
+                {
+                  "score": 1,
+                  "duration": 250.272
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 228.807
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 235.172
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 244.916
+                },
+                {
+                  "score": 1,
+                  "duration": 237.932
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 241.561
+                },
+                {
+                  "score": 1,
+                  "duration": 231.031
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 229.472
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 237.485
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 230.752
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 237.68
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 299.867
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 250.81
+                },
+                {
+                  "score": 1,
+                  "duration": 271.967
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9602272727272726,
@@ -9588,10 +11465,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9697240259740258,
-            "duration": 507.15734999999995
+            "score": 0.9717938311688311,
+            "duration": 461.65863541666664
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9821428571428572,
+                "duration": 234.16506250000003
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 261.98
+                },
+                {
+                  "score": 1,
+                  "duration": 231.276
+                },
+                {
+                  "score": 1,
+                  "duration": 243.16
+                },
+                {
+                  "score": 1,
+                  "duration": 217.779
+                },
+                {
+                  "score": 1,
+                  "duration": 210.455
+                },
+                {
+                  "score": 1,
+                  "duration": 228.883
+                },
+                {
+                  "score": 1,
+                  "duration": 227.52
+                },
+                {
+                  "score": 1,
+                  "duration": 242.543
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 258.222
+                },
+                {
+                  "score": 1,
+                  "duration": 228.019
+                },
+                {
+                  "score": 1,
+                  "duration": 236.147
+                },
+                {
+                  "score": 1,
+                  "duration": 226.726
+                },
+                {
+                  "score": 1,
+                  "duration": 224.335
+                },
+                {
+                  "score": 1,
+                  "duration": 256.026
+                },
+                {
+                  "score": 1,
+                  "duration": 244.512
+                },
+                {
+                  "score": 1,
+                  "duration": 209.058
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9602272727272726,
@@ -9966,10 +11915,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.980952380952381,
-            "duration": 412.1921125
+            "score": 0.9707341269841271,
+            "duration": 393.032
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9196428571428572,
+                "duration": 297.2314375
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 303.483
+                },
+                {
+                  "score": 1,
+                  "duration": 325.648
+                },
+                {
+                  "score": 1,
+                  "duration": 309.907
+                },
+                {
+                  "score": 1,
+                  "duration": 306.76
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 340.586
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 275.658
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 348.97
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 314.668
+                },
+                {
+                  "score": 1,
+                  "duration": 285.616
+                },
+                {
+                  "score": 1,
+                  "duration": 278.164
+                },
+                {
+                  "score": 1,
+                  "duration": 270.156
+                },
+                {
+                  "score": 1,
+                  "duration": 271.456
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 253.016
+                },
+                {
+                  "score": 1,
+                  "duration": 280.914
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 247.486
+                },
+                {
+                  "score": 1,
+                  "duration": 343.215
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 1,
@@ -10337,10 +12358,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9692099567099566,
-            "duration": 514.224075
+            "score": 0.9475559163059163,
+            "duration": 478.5879375
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.8392857142857143,
+                "duration": 300.40725000000003
+              },
+              "runs": [
+                {
+                  "score": 1,
+                  "duration": 373.804
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 294.595
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 316.199
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 272.833
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 275.904
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 327.826
+                },
+                {
+                  "score": 1,
+                  "duration": 266.749
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 344.23
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 320.189
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 296.265
+                },
+                {
+                  "score": 0.5714285714285714,
+                  "duration": 302.504
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 273.557
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 287.681
+                },
+                {
+                  "score": 0.7142857142857143,
+                  "duration": 287.12
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 267.889
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 299.171
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9829545454545453,
@@ -10708,10 +12801,82 @@
           "thinkingLevel": "medium",
           "iterations": 16,
           "average": {
-            "score": 0.9704545454545455,
-            "duration": 529.1638
+            "score": 0.969426406926407,
+            "duration": 487.5134479166666
           },
           "evals": {
+            "sanity-sdk-app": {
+              "average": {
+                "score": 0.9642857142857143,
+                "duration": 279.2616875
+              },
+              "runs": [
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 282.893
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 294.988
+                },
+                {
+                  "score": 1,
+                  "duration": 264.668
+                },
+                {
+                  "score": 1,
+                  "duration": 271.576
+                },
+                {
+                  "score": 1,
+                  "duration": 289.808
+                },
+                {
+                  "score": 1,
+                  "duration": 280.912
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 254.526
+                },
+                {
+                  "score": 1,
+                  "duration": 275.301
+                },
+                {
+                  "score": 1,
+                  "duration": 319.589
+                },
+                {
+                  "score": 1,
+                  "duration": 262.54
+                },
+                {
+                  "score": 1,
+                  "duration": 280.634
+                },
+                {
+                  "score": 1,
+                  "duration": 291.137
+                },
+                {
+                  "score": 1,
+                  "duration": 286.024
+                },
+                {
+                  "score": 1,
+                  "duration": 270.878
+                },
+                {
+                  "score": 0.8571428571428571,
+                  "duration": 268.992
+                },
+                {
+                  "score": 1,
+                  "duration": 273.721
+                }
+              ]
+            },
             "sanity-groq": {
               "average": {
                 "score": 0.9772727272727272,
