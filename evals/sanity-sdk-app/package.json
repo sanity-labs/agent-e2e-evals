@@ -1,32 +1,10 @@
 {
   "name": "sanity-sdk-app",
-  "private": true,
-  "version": "1.0.0",
   "type": "module",
-  "main": "package.json",
-  "license": "UNLICENSED",
   "scripts": {
-    "build": "sanity build",
-    "deploy": "sanity deploy",
-    "dev": "sanity dev",
-    "start": "sanity start"
-  },
-  "keywords": [
-    "sanity"
-  ],
-  "dependencies": {
-    "@sanity/sdk": "^2",
-    "@sanity/sdk-react": "^2",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "build": "cd app && npm run build"
   },
   "devDependencies": {
-    "@sanity/eslint-config-studio": "^6.0.0",
-    "@types/react": "^19.2.14",
-    "eslint": "^9.28",
-    "prettier": "^3.5",
-    "sanity": "^5.30.0",
-    "typescript": "^5.8",
     "vitest": "^2.1.0"
   }
 }
