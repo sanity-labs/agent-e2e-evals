@@ -1,6 +1,6 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
-import { withGeminiWorkspaceTrust } from './lib/gemini-trust-setup.js';
 import type { ExperimentMetadata } from './lib/experiment-metadata.js';
+import { withGeminiWorkspaceTrust } from './lib/gemini-trust-setup.js';
 import { redactSecrets } from './lib/redact-secrets.js';
 import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
 
