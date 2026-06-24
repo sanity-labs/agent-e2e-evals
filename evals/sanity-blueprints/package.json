@@ -1,0 +1,17 @@
+{
+  "name": "sanity-blueprints",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "package.json",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "sanity": "^5.30.0",
+    "typescript": "^5.8",
+    "vitest": "^2.1.0"
+  }
+}
