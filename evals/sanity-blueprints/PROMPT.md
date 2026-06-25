@@ -1,5 +1,8 @@
-This is a minimal Sanity Blueprints workspace. I want a Sanity Function, defined in the blueprint, that runs [FILL IN — the trigger, e.g. "when a `post` document is published"] and [FILL IN — what the function should do, e.g. "sets a `slug` from the title if one is missing"].
+This is a minimal Sanity Blueprints workspace, already wired to a project (see `sanity.blueprint.ts`). I want a Sanity Function, declared in the blueprint, that runs when a `post` document is **published** and gives it a `slug` derived from its `title` whenever the slug is missing.
 
-Define the function resource in the blueprint and write the handler code by hand.
+Two pieces of work:
 
-Do all of this locally — I'll deploy it myself later. Please don't run any command that creates or changes resources on the server (for example the `init`, `deploy`, or `plan` subcommands). Local-only checks like `sanity blueprints doctor` are fine.
+1. Declare the function as a resource in the blueprint, triggered by the publish event on `post` documents.
+2. Write the handler by hand in its own file. It should look at the published document and, only when `slug.current` is missing, derive a URL-friendly slug from `title` and patch it back onto the document.
+
+Do all of this locally. I'll deploy it myself later. Please don't run any command that creates, changes, or reads server resources (for example the blueprints `init`, `plan`, `deploy`, `destroy`, `info`, `logs`, or `doctor` subcommands, or `functions env`). Local-only helpers like `sanity functions dev` or `sanity functions test` are fine.

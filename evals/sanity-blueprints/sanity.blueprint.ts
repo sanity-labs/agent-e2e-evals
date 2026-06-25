@@ -1,9 +1,18 @@
-// TODO(blueprints-eval): define your Blueprint here.
-//
-// Declare a Sanity Function resource and wire it to the document event
-// described in PROMPT.md, then author the handler in its own file.
-//
-// Scaffold everything by hand. Do not use any CLI subcommand that creates or
-// changes server resources; only local-only checks are allowed.
+import {defineBlueprint} from '@sanity/blueprints'
 
-export {}
+const PROJECT_ID = 'xg4e0byh'
+const DATASET = 'production'
+
+export default defineBlueprint({
+  values: {
+    projectId: PROJECT_ID,
+    dataset: DATASET,
+  },
+  resources: [
+    // TODO(blueprints-eval): declare the Sanity document Function described in
+    // PROMPT.md and wire it to the document event.
+    //
+    // Scaffold everything locally. Do not run any CLI subcommand that creates,
+    // changes, or reads server resources (e.g. blueprints init/plan/deploy).
+  ],
+})

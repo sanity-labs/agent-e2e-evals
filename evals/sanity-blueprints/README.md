@@ -2,49 +2,50 @@
 
 Measures whether a coding agent can **scaffold a Sanity Blueprint by hand** — declaring a
 Sanity Function wired to a document event and authoring the handler — **without running any
-server-touching CLI command** (the blueprints `init` / `deploy` / `plan` subcommands).
+server-touching CLI command** (the blueprints `init` / `plan` / `deploy` / `destroy` / `info` /
+`logs` / `doctor` subcommands, or `functions env`).
 
-Grading is fully static (`EVAL.ts` only reads files; it never calls Sanity), consistent with the
-rest of the suite. The agent is steered away from server commands in `PROMPT.md`; `EVAL.ts` also
-asserts no committed file or npm script invokes them.
+## Scenario
 
-## Status: not runnable until the blanks are filled
+A minimal Blueprints workspace already pinned to a project (`sanity.blueprint.ts`). The task: add a
+document Function that, **on publish of a `post`**, derives a URL-friendly `slug` from `title` when
+the slug is missing, and patches it back. The agent declares the function resource in the blueprint
+and writes the handler by hand under `functions/<name>/index.ts`.
 
-This fixture is a structural skeleton. The Blueprints-specific API names are intentionally left
-blank so they can be filled from canonical Blueprints info. Until then, the dependent assertions
-fail with explicit `TODO:` messages (so the eval reads as "not ready", not a false pass).
+## What the grader checks
 
-## Blanks to fill
+1. Declares a Blueprint via a definition API (`defineBlueprint`).
+2. Declares a Sanity document Function (`defineDocumentFunction`, or the raw `sanity.function.document` type).
+3. Wires it to a document event (an `on:` array of `publish`/`create`/`update`/`delete`).
+4. Exports a handler (`export const handler = documentEventHandler<…>(…)`).
+5. Runs no server-touching CLI command (no file/script invokes the forbidden subcommands).
+6. Imports only real symbols from `@sanity/functions`.
+7. Preserves the pinned project (`xg4e0byh`) and dataset (`production`).
+8. Replaced the starter `TODO(blueprints-eval)` stub.
 
-| Where | What to provide |
-| --- | --- |
-| `EVAL.ts` → `FUNCTION_SDK_PACKAGE` (+ `FUNCTION_SDK_DTS`) | The package the handler imports from, and its installed `dist/*.d.ts` path (for the anti-hallucination check). |
-| `EVAL.ts` → `BLUEPRINT_DEFINE_APIS` | Identifier(s) that define a Blueprint / declare resources (e.g. `defineBlueprint`). |
-| `EVAL.ts` → `FUNCTION_RESOURCE_MARKERS` | Substring(s) proving the resource is a Sanity Function (e.g. its `type`/`kind` value). |
-| `EVAL.ts` → `DOCUMENT_EVENT_MARKERS` | Substring(s) proving the doc-event trigger (the trigger key + event value). |
-| `EVAL.ts` → `HANDLER_EXPORT_PATTERNS` | Pattern(s) matching the handler's export shape (default vs named). |
-| `EVAL.ts` → `PINNED_PROJECT_ID` / `PINNED_DATASET` | Shared eval project + dataset; mirror the same values in `sanity.cli.ts`. |
-| `EVAL.ts` → `FORBIDDEN_CLI` | Confirm/adjust the forbidden subcommands; confirm `doctor` (or whichever) is the allowed local-only command. |
-| `PROMPT.md` | The concrete scenario (doc type, event, what the function does). |
-| `sanity.cli.ts` | Replace `FILL_IN_PROJECT_ID` / `FILL_IN_DATASET` (or move the pin to wherever Blueprints canonically configures project/dataset). |
-| `package.json` → `dependencies` | Add the function-SDK package (the thing the handler imports). The CLI itself ships via `sanity`, already present. |
-| `tsconfig.json` | Align module/runtime settings with the canonical Functions toolchain if needed; `build` is `tsc --noEmit` (local-only). Optionally switch to `tsc --noEmit && sanity blueprints doctor` once you've confirmed `doctor` makes no network calls. |
+Baseline: the bare starter scores **4/8** (it already has `defineBlueprint`, the pinned target, no
+forbidden commands, and no hallucinated imports). A correct solution scores **8/8** — verified
+locally with a canonical handler.
 
-## After filling the blanks
+## Canonical sources & caveats
 
-1. Generate the committed lockfile (offline-deterministic install in the sandbox):
-   ```bash
-   cd evals/sanity-blueprints && pnpm install
-   ```
-   Commit the resulting `pnpm-lock.yaml`.
-2. Sanity-check the local build on the starter fixture:
-   ```bash
-   pnpm build   # tsc --noEmit
-   ```
+The Blueprints/Functions specifics are from Sanity documentation.
+
+- `@sanity/blueprints` → `defineBlueprint`, `defineDocumentFunction` (+ `defineCorsOrigin`, `defineRobotToken`, …).
+- `@sanity/functions` → `documentEventHandler`. Handler envelope is `{context, event}`; `event.data` is the (optionally projected) document; `context.clientOptions` feeds `@sanity/client`'s `createClient`.
+- Function source lives at `functions/<resource-name>/index.ts`; the CLI infers `src` from the name (no explicit `src:`).
+- The project is pinned the canonical way: in the blueprint's `values`.
+
+## Toolchain notes
+
+- `blueprints *` commands are **not** offline, so they're treated as server-touching and are 
+  **not** part of the build or the allowed local commands.
+- The only local-only CLI helpers are `sanity functions dev` / `functions test` / `functions add`.
+- `tsconfig.json` mirrors the canonical starter toolchain (`module: ESNext`, `moduleResolution: bundler`).
 
 ## Running
 
-- Fast grader-only loop (skips install + build; the SDK/import checks no-op):
+- Fast grader-only loop (skips install + build; the SDK import check no-ops):
   ```bash
   pnpm test-eval sanity-blueprints --model claude-opus-4-8 --runs 1
   ```
@@ -53,5 +54,11 @@ fail with explicit `TODO:` messages (so the eval reads as "not ready", not a fal
   pnpm agent-eval claude-opus-4.8
   ```
 
-The eval auto-runs across all experiments (the `nonMcpEvals` filter only excludes `mcp-smoketest`)
-and is published (it is registered in `scripts/export-results.ts` and is not in `INTERNAL_EVALS`).
+## Not graded (deliberately deferred)
+
+- **Behavioral correctness** of the function (does it actually set the slug). That needs executing
+  the handler against a document — a live deploy+verify path that was explicitly deferred.
+- **GROQ filter/projection correctness** beyond the event wiring being present.
+
+These are intentional: the suite is static-only today, and we don't want to assert behavior we
+can't yet exercise end-to-end.

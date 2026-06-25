@@ -8,17 +8,10 @@
  * blueprints `init`, `deploy`, or `plan` subcommands). Grading is fully static:
  * these assertions only read files, they never call Sanity.
  *
- * Maintainer note: the Blueprints-specific API names below are intentionally
- * left blank. Fill them in from canonical Blueprints info (see README.md,
- * "Blanks to fill"). Until they are filled, the dependent assertions fail with
- * an explicit TODO message rather than silently passing.
- *
- * To (re)generate the fixture lockfile after editing package.json:
- *   cd evals/sanity-blueprints && pnpm install
  * Keep these assertions stable between baseline and comparison runs.
  */
 import { existsSync, readdirSync, readFileSync } from 'fs';
-import { extname, join } from 'path';
+import { dirname, extname, join } from 'path';
 import { test, expect } from 'vitest';
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
@@ -31,45 +24,60 @@ const IGNORED_DIRS = new Set(['node_modules', 'dist', '.sanity', '.git', 'covera
 const IGNORED_FILES = new Set(['EVAL.ts']);
 
 // ───────────────────────────────────────────────────────────────────────────
-// BLANKS — fill from canonical Blueprints info. See README.md "Blanks to fill".
+// Blueprints API specifics — filled from canonical Blueprints material.
 // ───────────────────────────────────────────────────────────────────────────
 
-/** npm package the function handler imports from. e.g. '@sanity/functions' */
-const FUNCTION_SDK_PACKAGE: string = '';
+/** npm package the function handler imports the handler wrapper from. */
+const FUNCTION_SDK_PACKAGE = '@sanity/functions';
 
-/** Path to that package's type declarations, for the anti-hallucination test. */
+/** Path to that package's type declarations, for the anti-hallucination test.
+ *  NOTE: verify this resolves after `pnpm install` — if the package ships its
+ *  types elsewhere (e.g. a different `dist/` path or per-export `.d.ts`), update
+ *  this. When the file is absent the check no-ops (see the test below), so a
+ *  wrong path silently disables it rather than failing. */
 const FUNCTION_SDK_DTS = FUNCTION_SDK_PACKAGE ? `node_modules/${FUNCTION_SDK_PACKAGE}/dist/index.d.ts` : '';
 
-/** Identifiers that define a Blueprint / declare resources. e.g. ['defineBlueprint'] */
-const BLUEPRINT_DEFINE_APIS: string[] = [];
+/** Identifiers that define a Blueprint / declare resources (from @sanity/blueprints). */
+const BLUEPRINT_DEFINE_APIS = ['defineBlueprint', 'defineDocumentFunction'];
 
-/** Substrings proving the declared resource is a Sanity Function.
- *  e.g. ["type: 'sanity.function.document'"] */
-const FUNCTION_RESOURCE_MARKERS: string[] = [];
+/** Substrings proving the declared resource is a Sanity document Function.
+ *  Canonical authored code uses the `defineDocumentFunction` helper; the raw
+ *  underlying resource type is accepted too for the hand-rolled style. */
+const FUNCTION_RESOURCE_MARKERS = ['defineDocumentFunction', 'sanity.function.document'];
 
-/** Substrings proving the function is wired to a document event trigger.
- *  e.g. ['on:', "event: 'publish'"] */
-const DOCUMENT_EVENT_MARKERS: string[] = [];
+/** Patterns proving the function is wired to a document event trigger — an
+ *  `on:` array whose first entry is a known document event. Tolerant of quote
+ *  style and whitespace. (A plain `event:` is too weak to assert on its own.) */
+const DOCUMENT_EVENT_PATTERNS: RegExp[] = [/\bon\s*:\s*\[\s*['"](?:publish|create|update|delete)['"]/];
 
-/** Patterns proving a handler is exported.
- *  e.g. [/export\s+default\b/, /export\s+(?:const|async\s+function)\s+handler\b/] */
-const HANDLER_EXPORT_PATTERNS: RegExp[] = [];
+/** Patterns proving a handler is exported. Canonical shape is a named export
+ *  `export const handler = documentEventHandler<T>(async (...) => { ... })`. */
+const HANDLER_EXPORT_PATTERNS: RegExp[] = [/export\s+const\s+handler\b/, /\bdocumentEventHandler\b/];
 
-/** Shared eval target the agent must not change. e.g. 'xg4e0byh' / 'production' */
-const PINNED_PROJECT_ID: string = '';
-const PINNED_DATASET: string = '';
+/** Shared eval target the agent must not change (mirrors sanity-sdk-app). It is
+ *  pinned in sanity.blueprint.ts via `values`; grading is static, so no real
+ *  project is contacted. */
+const PINNED_PROJECT_ID = 'xg4e0byh';
+const PINNED_DATASET = 'production';
 
 /** Marker left in the starter stub; a correct solution removes it. */
 const STARTER_TODO_MARKER = 'TODO(blueprints-eval)';
 
-/** Server-touching commands the agent must avoid. It should scaffold by hand and
- *  may use only local-only commands (e.g. blueprints `doctor`). Confirm/adjust
- *  this list against the canonical CLI (see README.md). */
+/** Server-touching commands the agent must avoid — anything that creates,
+ *  changes, or reads remote stack/resource state. The agent scaffolds by hand;
+ *  the only local-only CLI helpers are `sanity functions dev` / `functions test`
+ *  / `functions add`. NB: `blueprints doctor` is NOT offline — it inspects the
+ *  deployed stack's scope — so it is forbidden here. */
 const FORBIDDEN_CLI: RegExp[] = [
-  /sanity\s+blueprints\s+init\b/,
-  /sanity\s+blueprints\s+deploy\b/,
-  /sanity\s+blueprints\s+plan\b/,
-  /sanity\s+functions\s+deploy\b/,
+  /\bsanity\s+blueprints\s+init\b/,
+  /\bsanity\s+blueprints\s+plan\b/,
+  /\bsanity\s+blueprints\s+deploy\b/,
+  /\bsanity\s+blueprints\s+destroy\b/,
+  /\bsanity\s+blueprints\s+info\b/,
+  /\bsanity\s+blueprints\s+logs\b/,
+  /\bsanity\s+blueprints\s+stacks\b/,
+  /\bsanity\s+blueprints\s+doctor\b/,
+  /\bsanity\s+functions\s+env\b/,
   /\bsanity\s+deploy\b/,
 ];
 
@@ -108,6 +116,42 @@ function containsAny(haystack: string, needles: string[]): boolean {
   return needles.some((needle) => haystack.includes(needle));
 }
 
+/** Collect the names a `.d.ts` entry exports, following local `export *` /
+ *  `export { … } from './x'` re-exports (barrel files like @sanity/functions's
+ *  index.d.ts, which only re-exports from ./definers.js and ./types.js). */
+function collectDtsExports(entryPath: string): Set<string> {
+  const exported = new Set<string>();
+  const visited = new Set<string>();
+  const queue = [entryPath];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (!file || visited.has(file) || !existsSync(file)) continue;
+    visited.add(file);
+    const dts = readFileSync(file, 'utf-8');
+    const dir = dirname(file);
+
+    for (const match of dts.matchAll(
+      /^export declare (?:abstract )?(?:function|const|class|interface|type|enum|let|var) (\w+)/gm,
+    )) {
+      if (match[1]) exported.add(match[1]);
+    }
+    for (const match of dts.matchAll(/^export \{([^}]+)\}/gm)) {
+      for (const rawName of (match[1] ?? '').split(',')) {
+        const name = rawName.trim().replace(/^type\s+/, '');
+        if (!name) continue;
+        const alias = name.split(/\s+as\s+/).at(-1);
+        if (alias) exported.add(alias.trim());
+      }
+    }
+    // Follow re-exports: `export * from './x.js'` and `export { … } from './x.js'`.
+    for (const match of dts.matchAll(/^export\s+(?:\*|\{[^}]*\})\s+from\s+['"]([^'"]+)['"]/gm)) {
+      const spec = match[1];
+      if (spec && spec.startsWith('.')) queue.push(join(dir, spec.replace(/\.js$/, '.d.ts')));
+    }
+  }
+  return exported;
+}
+
 test('declares a Blueprint using a Blueprint definition API', () => {
   expect(BLUEPRINT_DEFINE_APIS, 'TODO: fill BLUEPRINT_DEFINE_APIS in EVAL.ts').not.toEqual([]);
   expect(
@@ -125,10 +169,10 @@ test('declares a Sanity Function resource', () => {
 });
 
 test('wires the function to a document event trigger', () => {
-  expect(DOCUMENT_EVENT_MARKERS, 'TODO: fill DOCUMENT_EVENT_MARKERS in EVAL.ts').not.toEqual([]);
+  const source = readAllSource();
   expect(
-    containsAny(readAllSource(), DOCUMENT_EVENT_MARKERS),
-    'expected the function to be triggered by a document event',
+    DOCUMENT_EVENT_PATTERNS.some((pattern) => pattern.test(source)),
+    'expected the function to be triggered by a document event (an `on:` array of publish/create/update/delete)',
   ).toBe(true);
 });
 
@@ -153,21 +197,7 @@ test('imports only real symbols from the function SDK', () => {
   // there is nothing meaningful to check.
   if (!FUNCTION_SDK_PACKAGE || !FUNCTION_SDK_DTS || !existsSync(FUNCTION_SDK_DTS)) return;
 
-  const dts = readFileSync(FUNCTION_SDK_DTS, 'utf-8');
-  const exported = new Set<string>();
-  for (const match of dts.matchAll(
-    /^export declare (?:abstract )?(?:function|const|class|interface|type|enum|let|var) (\w+)/gm,
-  )) {
-    if (match[1]) exported.add(match[1]);
-  }
-  for (const match of dts.matchAll(/^export \{([^}]+)\}/gm)) {
-    for (const rawName of (match[1] ?? '').split(',')) {
-      const name = rawName.trim().replace(/^type\s+/, '');
-      if (!name) continue;
-      const alias = name.split(/\s+as\s+/).at(-1);
-      if (alias) exported.add(alias.trim());
-    }
-  }
+  const exported = collectDtsExports(FUNCTION_SDK_DTS);
 
   const pkgPattern = FUNCTION_SDK_PACKAGE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const importRegex = new RegExp(`import\\s+(?:type\\s+)?\\{([^}]*)\\}\\s*from\\s*['"]${pkgPattern}['"]`, 'g');
