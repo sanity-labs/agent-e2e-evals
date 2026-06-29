@@ -3,12 +3,13 @@ import { baseSetup } from './base-setup.js';
 
 const token = process.env.SANITY_AUTH_TOKEN;
 const mcpUrl = process.env.SANITY_MCP_URL || 'https://mcp.sanity.io/';
+const disabledTools = ['list_sanity_rules', 'get_sanity_rules'];
 
 if (!token) {
   throw new Error('SANITY_AUTH_TOKEN environment variable is required for MCP experiments');
 }
 
-const mcpJson = JSON.stringify(
+const claudeMcpJson = JSON.stringify(
   {
     mcpServers: {
       sanity: {
@@ -24,11 +25,42 @@ const mcpJson = JSON.stringify(
   2,
 );
 
+const claudeSettingsJson = JSON.stringify(
+  {
+    permissions: {
+      deny: disabledTools.map((tool) => `mcp__sanity__${tool}`),
+    },
+  },
+  null,
+  2,
+);
+
+const cursorMcpJson = JSON.stringify(
+  {
+    mcpServers: {
+      sanity: {
+        command: 'npx',
+        args: [
+          '-y',
+          'mcp-remote@latest',
+          mcpUrl,
+          '--header',
+          `Authorization: Bearer ${token}`,
+          ...disabledTools.flatMap((tool) => ['--ignore-tool', tool]),
+        ],
+      },
+    },
+  },
+  null,
+  2,
+);
+
 const codexMcpToml = [
   '',
   '[mcp_servers.sanity]',
   `url = "${mcpUrl}"`,
   `http_headers = { "Authorization" = "Bearer ${token}" }`,
+  `disabled_tools = [${disabledTools.map((tool) => `"${tool}"`).join(', ')}]`,
   'required = true',
   '',
 ].join('\n');
@@ -37,11 +69,13 @@ export const sanityMcpSetup: SetupFunction = async (sandbox) => {
   await baseSetup(sandbox);
 
   // Claude Code: .mcp.json in project root
-  await sandbox.writeFiles({ '.mcp.json': mcpJson });
+  await sandbox.writeFiles({ '.mcp.json': claudeMcpJson });
+  await sandbox.runCommand('mkdir', ['-p', '.claude']);
+  await sandbox.writeFiles({ '.claude/settings.json': claudeSettingsJson });
 
   // Cursor: .cursor/mcp.json in project root
   await sandbox.runCommand('mkdir', ['-p', '.cursor']);
-  await sandbox.writeFiles({ '.cursor/mcp.json': mcpJson });
+  await sandbox.writeFiles({ '.cursor/mcp.json': cursorMcpJson });
 
   // Codex: append MCP config to ~/.codex/config.toml (user-level, always loaded regardless of project trust)
   await sandbox.runCommand('bash', ['-c', 'mkdir -p ~/.codex']);
