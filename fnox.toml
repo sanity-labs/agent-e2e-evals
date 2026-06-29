@@ -14,6 +14,7 @@ AI_GATEWAY_API_KEY = { provider = "op", value = "agent-evals-exploration ai-gate
 ANTHROPIC_API_KEY = { provider = "op", value = "agent-evals-exploration anthropic-api-key/password", if_missing = "warn" }
 OPENAI_API_KEY = { provider = "op", value = "agent-evals-exploration openai-api-key/password", if_missing = "warn" }
 CURSOR_API_KEY = { provider = "op", value = "agent-evals-exploration cursor-api-key/password", if_missing = "warn" }
+GEMINI_API_KEY = { provider = "op", value = "agent-e2e-evals gemini-api-key/password", if_missing = "warn" }
 
 # Sanity MCP experiments
 SANITY_AUTH_TOKEN = { provider = "op", value = "agent-evals-exploration sanity-staging-auth-token/password" }

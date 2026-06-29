@@ -66,6 +66,8 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'claude-sonnet-4.6': 'Claude Sonnet 4.6',
   'cursor-composer-2.0': 'Cursor Composer 2.0',
   'cursor-composer-2.5': 'Cursor Composer 2.5',
+  'gemini-3.1-pro': 'Gemini 3.1 Pro',
+  'gemini-3.5-flash': 'Gemini 3.5 Flash',
   'gpt-5.3-codex': 'GPT-5.3 Codex',
   'gpt-5.4': 'GPT-5.4',
   'gpt-5.5': 'GPT-5.5',
