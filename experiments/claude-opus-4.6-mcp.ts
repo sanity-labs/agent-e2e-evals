@@ -6,9 +6,9 @@ const config: ExperimentConfig = {
   agent: 'claude-code',
   model: 'claude-opus-4-6',
   scripts: ['build'],
-  runs: 4,
+  runs: 16,
   earlyExit: false,
-  timeout: 1200,
+  timeout: 1800,
   setup: sanityMcpSetup,
   onRunComplete: redactSecrets,
 };
