@@ -1,6 +1,14 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { redactSecrets } from './lib/redact-secrets.js';
 import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
+
+export const experimentMetadata = {
+  modelName: 'claude-opus-4.6',
+  displayName: 'Claude Opus 4.6',
+  variant: 'skills',
+  thinkingLevel: 'high',
+} satisfies ExperimentMetadata;
 
 const config: ExperimentConfig = {
   agent: 'claude-code',
@@ -9,6 +17,7 @@ const config: ExperimentConfig = {
   runs: 16,
   earlyExit: false,
   timeout: 1800,
+  agentOptions: { effort: 'high' },
   evals: nonMcpEvals,
   setup: createSanitySkillsSetup('claude-code'),
   onRunComplete: redactSecrets,
