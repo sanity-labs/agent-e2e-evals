@@ -25,7 +25,7 @@ const jiti = createJiti(import.meta.url, {
 const experimentConfigSchema = z.looseObject({ agent: z.string() });
 const experimentModuleSchema = z.looseObject({ default: experimentConfigSchema });
 
-export function validateExperimentModule(module: unknown, experimentName: string): LoadedExperimentMetadata {
+function validateExperimentModule(module: unknown, experimentName: string): LoadedExperimentMetadata {
   const result = experimentModuleSchema.parse(module);
 
   return {
