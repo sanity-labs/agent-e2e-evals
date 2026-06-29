@@ -153,30 +153,33 @@ function parseVitestScore(output: string): number | null {
 /**
  * Compute the average assertion-level score across all runs in an eval directory.
  * Reads outputs/eval.txt from each run-N/ subdirectory to parse vitest results.
- * Falls back to binary pass/fail from summary.json if no vitest output is available.
+ *
+ * A run that produced no parseable eval output (it timed out or crashed before
+ * the assertions ran) counts as 0 — a timeout means the agent didn't finish in
+ * time, which is a failure, not a run to silently drop. Falls back to the
+ * binary pass/fail from summary.json only when there are no run directories.
  */
 async function computeEvalScore(evalSrcDir: string, summary: SummaryJson): Promise<number> {
   const runDirs = (await listSubdirs(evalSrcDir)).filter((e) => /^run-\d+$/.test(e)).sort();
 
+  if (runDirs.length === 0) {
+    return summary.passedRuns > 0 ? 1 : 0;
+  }
+
   const scores: number[] = [];
   for (const runDir of runDirs) {
     const evalOutputPath = join(evalSrcDir, runDir, 'outputs', 'eval.txt');
+    let score = 0;
     try {
       const output = await readFile(evalOutputPath, 'utf-8');
-      const score = parseVitestScore(output);
-      if (score !== null) {
-        scores.push(score);
-      }
+      score = parseVitestScore(output) ?? 0;
     } catch {
-      // No eval output for this run
+      // No eval output for this run -> failed/timed-out run, scored as 0.
     }
+    scores.push(score);
   }
 
-  if (scores.length > 0) {
-    return scores.reduce((a, b) => a + b, 0) / scores.length;
-  }
-
-  return summary.passedRuns > 0 ? 1 : 0;
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
 }
 
 /**
