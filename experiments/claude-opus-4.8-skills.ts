@@ -1,4 +1,5 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import { redactSecrets } from './lib/redact-secrets.js';
 import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
 
 const config: ExperimentConfig = {
@@ -10,6 +11,7 @@ const config: ExperimentConfig = {
   timeout: 1200,
   evals: nonMcpEvals,
   setup: createSanitySkillsSetup('claude-code'),
+  onRunComplete: redactSecrets,
 };
 
 export default config;
