@@ -18,7 +18,7 @@ and writes the handler by hand under `functions/<name>/index.ts`.
 2. Declares a Sanity document Function (`defineDocumentFunction`, or the raw `sanity.function.document` type).
 3. Wires it to a document event (an `on:` array of `publish`/`create`/`update`/`delete`).
 4. Exports a handler (`export const handler = documentEventHandler<…>(…)`).
-5. Runs no server-touching CLI command (no file/script invokes the forbidden subcommands).
+5. Keeps server-touching commands out of the auto-run `build`/lifecycle scripts (standalone `deploy`/`plan` scripts are fine).
 6. Imports only real symbols from `@sanity/functions`.
 7. Preserves the pinned project (`xg4e0byh`) and dataset (`production`).
 8. Replaced the starter `TODO(blueprints-eval)` stub.

@@ -63,20 +63,28 @@ const PINNED_DATASET = 'production';
 /** Marker left in the starter stub; a correct solution removes it. */
 const STARTER_TODO_MARKER = 'TODO(blueprints-eval)';
 
-/** Server-touching commands the agent must avoid — anything that creates,
- *  changes, or reads remote stack/resource state. The agent scaffolds by hand;
- *  the only local-only CLI helpers are `sanity functions dev` / `functions test`
- *  / `functions add`. NB: `blueprints doctor` is NOT offline — it inspects the
- *  deployed stack's scope — so it is forbidden here. */
-const FORBIDDEN_CLI: RegExp[] = [
-  /\bsanity\s+blueprints\s+init\b/,
-  /\bsanity\s+blueprints\s+plan\b/,
-  /\bsanity\s+blueprints\s+deploy\b/,
-  /\bsanity\s+blueprints\s+destroy\b/,
-  /\bsanity\s+blueprints\s+info\b/,
-  /\bsanity\s+blueprints\s+logs\b/,
-  /\bsanity\s+blueprints\s+stacks\b/,
-  /\bsanity\s+blueprints\s+doctor\b/,
+/** Scripts that run automatically during grading: the harness runs `build`, and
+ *  install/prepare lifecycle hooks run on `pnpm install`. These must stay
+ *  offline. Standalone action scripts (`deploy`, `plan`, `info`, `logs`, …) are
+ *  canonical in real Blueprint projects, so they are NOT penalized — the agent
+ *  just shouldn't wire a server-touching command into this auto-run path. */
+const AUTORUN_SCRIPTS = new Set([
+  'build',
+  'prebuild',
+  'postbuild',
+  'preinstall',
+  'install',
+  'postinstall',
+  'prepare',
+  'prepublish',
+  'prepublishOnly',
+]);
+
+/** Commands that create, change, or read remote stack/resource state. NB:
+ *  `blueprints doctor` is NOT offline either — it inspects the deployed stack's
+ *  scope. */
+const SERVER_CLI: RegExp[] = [
+  /\bsanity\s+blueprints\s+(?:init|plan|deploy|destroy|info|logs|stacks|doctor)\b/,
   /\bsanity\s+functions\s+env\b/,
   /\bsanity\s+deploy\b/,
 ];
@@ -102,10 +110,10 @@ function readAllSource(): string {
     .join('\n');
 }
 
-function readPackageScripts(): string {
-  if (!existsSync('package.json')) return '';
+function readPackageScripts(): Record<string, string> {
+  if (!existsSync('package.json')) return {};
   const pkg = JSON.parse(readFileSync('package.json', 'utf-8')) as { scripts?: Record<string, string> };
-  return Object.values(pkg.scripts ?? {}).join('\n');
+  return pkg.scripts ?? {};
 }
 
 function usesIdentifier(source: string, names: string[]): boolean {
@@ -185,10 +193,15 @@ test('exports a function handler', () => {
   ).toBe(true);
 });
 
-test('does not run server-touching Blueprints commands', () => {
-  const haystack = [readAllSource(), readPackageScripts()].join('\n');
-  const offenders = FORBIDDEN_CLI.filter((pattern) => pattern.test(haystack)).map((pattern) => pattern.source);
-  expect(offenders, 'agent must scaffold by hand; init/deploy/plan hit the server').toEqual([]);
+test('keeps server-touching commands out of the auto-run build/lifecycle scripts', () => {
+  const autorun = Object.entries(readPackageScripts())
+    .filter(([name]) => AUTORUN_SCRIPTS.has(name))
+    .map(([, command]) => command)
+    .join('\n');
+  const offenders = SERVER_CLI.filter((pattern) => pattern.test(autorun)).map((pattern) => pattern.source);
+  expect(offenders, 'build/lifecycle scripts must stay offline — run deploy/plan by hand, not during grading').toEqual(
+    [],
+  );
 });
 
 test('imports only real symbols from the function SDK', () => {
