@@ -11,17 +11,21 @@
     "redact-results": "node scripts/redact-results.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "knip": "knip",
     "format": "oxfmt --check",
     "format:fix": "oxfmt"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",
     "@vercel/agent-eval": "^1.1.1",
+    "jiti": "^2.7.0",
+    "knip": "^6.15.0",
     "map-obj": "^6.0.0",
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "tinyexec": "^1.1.1",
     "typescript": "^6.0.3",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "zod": "^4.4.3"
   }
 }

@@ -1,14 +1,23 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
+import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { redactSecrets } from './lib/redact-secrets.js';
 import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
+
+export const experimentMetadata = {
+  modelName: 'claude-opus-4.7',
+  displayName: 'Claude Opus 4.7',
+  variant: 'mcp',
+  thinkingLevel: 'high',
+} satisfies ExperimentMetadata;
 
 const config: ExperimentConfig = {
   agent: 'claude-code',
   model: 'claude-opus-4-7',
   scripts: ['build'],
-  runs: 4,
+  runs: 16,
   earlyExit: false,
-  timeout: 1200,
+  timeout: 1800,
+  agentOptions: { effort: 'high' },
   setup: sanityMcpSetup,
   onRunComplete: redactSecrets,
 };

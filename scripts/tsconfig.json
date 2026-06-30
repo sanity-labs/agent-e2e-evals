@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false
+  },
+  "extends": "../tsconfig.json"
+}
