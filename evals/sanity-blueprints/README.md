@@ -45,11 +45,11 @@ The Blueprints/Functions specifics are from Sanity documentation.
 
 ## Running
 
-- Fast grader-only loop (skips install + build; the SDK import check no-ops):
+- Single eval (grader only; skips install + build):
   ```bash
   pnpm test-eval sanity-blueprints --model claude-opus-4-8 --runs 1
   ```
-- Full pipeline (install → build → grade), via a real experiment filtered to this eval:
+- Full suite for an experiment (all evals, not just this one):
   ```bash
   pnpm agent-eval claude-opus-4.8
   ```
