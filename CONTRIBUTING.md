@@ -20,7 +20,10 @@ Here's some terminology you'll see used throughout @vercel/agent-eval and this p
   - We define a separate experiment for each variant (one of baseline, MCP, or skills) which are then grouped together in the results summary
 - Results - the raw outputs from @vercel/agent-eval of each experiment which can be used to determine how well each experiment performed on the evals
   - When you run `agent-eval`, results are stored in `./results/` locally
+<<<<<<< HEAD
   - Browse these with `pnpm playground`, which launches a local web UI for inspecting runs, transcripts, and side-by-side comparisons
+=======
+>>>>>>> main
 - Results summary - a JSON representation of the eval results, the format itself is defined in `./published/` and `scripts/export-results.ts`
 
 ## Dev tools
@@ -34,6 +37,19 @@ To setup the repo for local development, run these commands:
 4. Cache the secrets from fnox `fnox sync --provider age --local-file`
    - This exports the secrets from 1Password and encrypts them locally, not required but makes it so you aren't prompted by 1Password continuously
 5. Run `pnpm install`
+
+## Working with real Sanity projects
+
+Some evals go beyond editing files and actually interact with the Sanity backend (ex. creating projects, deploying studios, etc.)
+These run against real projects and organizations against the staging Sanity instance, authenticated with the `SANITY_AUTH_TOKEN` staging token (see `fnox.toml`).
+
+When a fixture or prompt needs an organization or project, use the shared staging org `oEibUYrzC` and project `k6xtz0tk`.
+There's no existing automation for cleaning up created projects/datasets, but this org/project is specifically for using with evals, so don't worry about leaving things behind.
+Prefer referencing this org/project over standing up new ones so runs stay reproducible and cleanup stays manageable.
+
+CI is already configured with the right tokens for this org, so evals that hit these APIs work out of the box when run through GitHub Actions.
+
+Note that when possible, we prefer to write evals that don't need to talk to Sanity APIs, but this may change in the future as we build out better automation for running evals.
 
 ## Running scripts
 
