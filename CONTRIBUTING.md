@@ -34,6 +34,19 @@ To setup the repo for local development, run these commands:
    - This exports the secrets from 1Password and encrypts them locally, not required but makes it so you aren't prompted by 1Password continuously
 5. Run `pnpm install`
 
+## Working with real Sanity projects
+
+Some evals go beyond editing files and actually interact with the Sanity backend (ex. creating projects, deploying studios, etc.)
+These run against real projects and organizations against the staging Sanity instance, authenticated with the `SANITY_AUTH_TOKEN` staging token (see `fnox.toml`).
+
+When a fixture or prompt needs an organization or project, use the shared staging org `oEibUYrzC` and project `k6xtz0tk`.
+There's no existing automation for cleaning up created projects/datasets, but this org/project is specifically for using with evals, so don't worry about leaving things behind.
+Prefer referencing this org/project over standing up new ones so runs stay reproducible and cleanup stays manageable.
+
+CI is already configured with the right tokens for this org, so evals that hit these APIs work out of the box when run through GitHub Actions.
+
+Note that when possible, we prefer to write evals that don't need to talk to Sanity APIs, but this may change in the future as we build out better automation for running evals.
+
 ## Running scripts
 
 Scripts are mostly defined in package.json and meant to be run via pnpm, but we try to keep parity with mise.

@@ -18,6 +18,9 @@ For local development, running scripts, and working with generated results, see 
 Each eval is a realistic Sanity-related coding task in a project fixture.
 The agent receives the prompt, works in the fixture, and then static assertions are run to determine how well the agent completed the task.
 
+Some evals also have the agent interact with live Sanity resources against our staging instance.
+See [CONTRIBUTING.md](CONTRIBUTING.md#working-with-real-sanity-projects) for guidance on how to work with these evals.
+
 We grade evals on two main things:
 
 - The fixture's own build/test scripts, which catch runtime, type, and integration problems
