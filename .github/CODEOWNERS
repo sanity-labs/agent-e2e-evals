@@ -5,4 +5,4 @@
 /evals/sanity-sdk-app/ @sanity-labs/sdk
 
 # Runtime Functions team owns Blueprints and Functions evals
-/evals/sanity-blueprints/ @sanity-io/runtime-functions
+/evals/sanity-blueprints/ @sanity-io/runtime
