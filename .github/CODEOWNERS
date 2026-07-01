@@ -1,0 +1,8 @@
+# Default: AI Growth team owns everything
+* @sanity-io/ai-growth
+
+# SDK team owns SDK evals
+/evals/sanity-sdk-app/ @sanity-labs/sdk
+
+# Runtime Functions team owns Blueprints and Functions evals
+/evals/sanity-blueprints/ @sanity-io/runtime
