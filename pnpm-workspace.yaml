@@ -2,6 +2,9 @@ allowBuilds:
   cpu-features: false
   esbuild: true
   protobufjs: false
+  sharp: false
   ssh2: false
 minimumReleaseAgeExclude:
   - '@vercel/agent-eval@0.14.2'
+overrides:
+  '@vercel/agent-eval-playground>next': 16.1.7

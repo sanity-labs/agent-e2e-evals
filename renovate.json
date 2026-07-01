@@ -8,7 +8,7 @@
       "enabled": false
     },
     {
-      "matchPackageNames": ["@vercel/agent-eval"],
+      "matchPackageNames": ["@vercel/agent-eval", "@vercel/agent-eval-playground"],
       "enabled": true
     }
   ]

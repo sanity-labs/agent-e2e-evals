@@ -20,6 +20,7 @@ Here's some terminology you'll see used throughout @vercel/agent-eval and this p
   - We define a separate experiment for each variant (one of baseline, MCP, or skills) which are then grouped together in the results summary
 - Results - the raw outputs from @vercel/agent-eval of each experiment which can be used to determine how well each experiment performed on the evals
   - When you run `agent-eval`, results are stored in `./results/` locally
+  - Browse these with `pnpm playground`, which launches a local web UI for inspecting runs, transcripts, and side-by-side comparisons
 - Results summary - a JSON representation of the eval results, the format itself is defined in `./published/` and `scripts/export-results.ts`
 
 ## Dev tools
@@ -61,5 +62,10 @@ Use `pnpm test-eval --help` to see the options for the script.
 To run the full eval suite, use the `agent-eval` CLI directly.
 You can run evals via GitHub Actions by [triggering the workflow to run manually](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), see `.github/workflows/evals.yml` for more info.
 
-Once you've run evals, you can use `pnpm export-results` to generate our results summary JSON.
-Otherwise you can review the raw results in `./results/`.
+### Browsing results
+
+Use `pnpm playground` (or `pnpm playground:watch`) to browse eval outputs in `./results` in a local web UI.
+This is a good tool when iterating on evals locally and trying to understand why an assertion is failing, what tools an agent is using, etc.
+
+Use `pnpm export-results` to generate our results summary JSON (see [`published/README.md`](published/README.md)).
+You can also review the raw result files directly in `./results/`.
