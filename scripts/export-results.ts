@@ -74,6 +74,7 @@ const HARNESS_NAMES: Record<string, string> = {
 };
 
 const EVAL_DISPLAY_NAMES: Record<string, string> = {
+  'sanity-blueprints': 'Blueprints',
   'sanity-groq': 'GROQ',
   'sanity-live-content': 'Live Content',
   'sanity-nextjs-starter': 'Next.js Starter',
