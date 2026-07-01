@@ -20,10 +20,7 @@ Here's some terminology you'll see used throughout @vercel/agent-eval and this p
   - We define a separate experiment for each variant (one of baseline, MCP, or skills) which are then grouped together in the results summary
 - Results - the raw outputs from @vercel/agent-eval of each experiment which can be used to determine how well each experiment performed on the evals
   - When you run `agent-eval`, results are stored in `./results/` locally
-<<<<<<< HEAD
   - Browse these with `pnpm playground`, which launches a local web UI for inspecting runs, transcripts, and side-by-side comparisons
-=======
->>>>>>> main
 - Results summary - a JSON representation of the eval results, the format itself is defined in `./published/` and `scripts/export-results.ts`
 
 ## Dev tools
