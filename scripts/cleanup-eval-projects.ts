@@ -14,6 +14,7 @@ import { EVAL_DISPLAY_NAMES } from './common.ts';
 const FIXTURE_ORG_ID = process.env.SANITY_EVAL_ORGANIZATION_ID ?? 'oEibUYrzC';
 const PINNED_PROJECT_ID = process.env.SANITY_EVAL_PROJECT_ID ?? 'k6xtz0tk';
 const MODEL = 'claude-haiku-4-5';
+const REASONING = 'medium';
 const SANITY_API_HOST =
   process.env.SANITY_INTERNAL_ENV === 'production' ? 'https://api.sanity.io' : 'https://api.sanity.work';
 
@@ -108,6 +109,7 @@ async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cle
   const projectIds = new Set(projects.map((project) => project.id));
   const { output } = await generateText({
     model: anthropic(MODEL),
+    reasoning: REASONING,
     output: Output.object({ schema: cleanupDecisionSchema }),
     instructions: [
       'Review a list of Sanity projects and decide which ones should be deleted.',
@@ -191,7 +193,7 @@ if (projects.length === 0) {
   process.exit(0);
 }
 
-console.log(`Classifying projects with ${MODEL}`);
+console.log(`Classifying projects with ${MODEL} (${REASONING} reasoning)`);
 const decisions = await classifyProjects(projects);
 const projectsById = new Map(projects.map((project) => [project.id, project]));
 const finalDecisions = applyHardcodedPolicy(decisions, projectsById);
