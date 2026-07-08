@@ -79,3 +79,11 @@ Don't be afraid to create large fixtures, these are often most representative of
 Using template/example projects from the Sanity documentation and community is a good way to get something set up quickly.
 
 Fixtures should define a package.json with a `build` script, this will be used as part of the grading process when running evals.
+
+## Additional resources
+
+Evals are a new problem that we as an industry are learning how to solve, but there are emerging patterns + best practices.
+Take a look at these other eval projects and their methodology to help guide your own changes to our suite:
+
+- <https://senior-swe-bench.snorkel.ai/blog/2026-06-16-how-it-works#task-design>
+- <https://deepswe.datacurve.ai/blog/deepswe#task-construction>
