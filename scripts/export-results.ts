@@ -10,13 +10,13 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { z } from 'zod';
+import { EVAL_DISPLAY_NAMES } from './common.ts';
 import {
   loadExperimentMetadata,
   type LoadedExperimentMetadata,
   type ThinkingLevel,
   type VariantType,
 } from './lib/experiment-metadata.ts';
-import { EVAL_DISPLAY_NAMES } from './common.ts';
 
 interface SummaryJson {
   totalRuns: number;
