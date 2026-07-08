@@ -140,6 +140,13 @@ jobs:
           git pull --rebase
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
+      - name: Cleanup eval projects
+        if: ${{ always() && inputs.dry != true }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+        run: pnpm run cleanup-eval-projects -- --delete
+
       - name: Report eval exit status
         if: ${{ always() && inputs.dry != true }}
         env:
