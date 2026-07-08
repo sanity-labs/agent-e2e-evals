@@ -16,6 +16,7 @@ import {
   type ThinkingLevel,
   type VariantType,
 } from './lib/experiment-metadata.ts';
+import { EVAL_DISPLAY_NAMES } from './common.ts';
 
 interface SummaryJson {
   totalRuns: number;
@@ -71,16 +72,6 @@ const HARNESS_NAMES: Record<string, string> = {
   'vercel-ai-gateway/claude-code': 'Claude Code',
   'vercel-ai-gateway/codex': 'Codex',
   'vercel-ai-gateway/opencode': 'OpenCode',
-};
-
-const EVAL_DISPLAY_NAMES: Record<string, string> = {
-  'sanity-blueprints': 'Blueprints',
-  'sanity-groq': 'GROQ',
-  'sanity-live-content': 'Live Content',
-  'sanity-nextjs-starter': 'Next.js Starter',
-  'sanity-presentation': 'Presentation Mode',
-  'sanity-sdk-app': 'SDK App',
-  'sanity-typegen': 'TypeGen',
 };
 
 const INTERNAL_EVALS = new Set(['mcp-smoketest']);

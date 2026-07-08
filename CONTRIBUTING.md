@@ -41,7 +41,7 @@ Some evals go beyond editing files and actually interact with the Sanity backend
 These run against real projects and organizations against the staging Sanity instance, authenticated with the `SANITY_AUTH_TOKEN` staging token (see `fnox.toml`).
 
 When a fixture or prompt needs an organization or project, use the shared staging org `oEibUYrzC` and project `k6xtz0tk`.
-There's no existing automation for cleaning up created projects/datasets, but this org/project is specifically for using with evals, so don't worry about leaving things behind.
+Projects created in the `oEibUYrzC` org are automatically cleaned up after CI finishes (see `scripts/cleanup-eval-projects.ts`), so don't worry about leaving things behind.
 Prefer referencing this org/project over standing up new ones so runs stay reproducible and cleanup stays manageable.
 
 CI is already configured with the right tokens for this org, so evals that hit these APIs work out of the box when run through GitHub Actions.
