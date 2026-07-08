@@ -19,7 +19,23 @@ const SANITY_API_HOST =
   process.env.SANITY_INTERNAL_ENV === 'production' ? 'https://api.sanity.io' : 'https://api.sanity.work';
 
 // Add project IDs that should never be deleted here.
-const NEVER_DELETE_PROJECT_IDS = [PINNED_PROJECT_ID, 'ewarjnkq', '43szst9a', '6yyzwg5d'];
+const NEVER_DELETE_PROJECT_IDS = [
+  PINNED_PROJECT_ID,
+  'ewarjnkq',
+  '43szst9a',
+  '6yyzwg5d',
+  '5rqpul29',
+  'lpvyeh0h',
+  'wex57hrk',
+  'a4ksoktz',
+  '2bp02lrc',
+  'zloxk6xx',
+  'ewarjnkq',
+  'ikw3sn6k',
+  'edsoi7in',
+  'hqrr0b0k',
+  'pi46dew1',
+];
 
 // Add exact project display names that should always be deleted here.
 const ALWAYS_DELETE_PROJECT_NAMES = [
