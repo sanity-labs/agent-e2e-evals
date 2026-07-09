@@ -1,5 +1,5 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
-import { baseSetup, nonMcpEvals } from './lib/base-setup.js';
+import { baseSetup, nonMcpEvals, sanityEvalEnv } from './lib/base-setup.js';
 import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { redactSecrets } from './lib/redact-secrets.js';
 
@@ -17,6 +17,7 @@ const config: ExperimentConfig = {
   runs: 16,
   earlyExit: false,
   timeout: 1800,
+  env: sanityEvalEnv,
   evals: nonMcpEvals,
   setup: baseSetup,
   onRunComplete: redactSecrets,

@@ -2,7 +2,7 @@ import type { ExperimentConfig } from '@vercel/agent-eval';
 import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { withGeminiWorkspaceTrust } from './lib/gemini-trust-setup.js';
 import { redactSecrets } from './lib/redact-secrets.js';
-import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
+import { createSanitySkillsSetup, nonMcpEvals, sanityEvalEnv } from './lib/sanity-skills-setup.js';
 
 export const experimentMetadata = {
   modelName: 'gemini-3.5-flash',
@@ -17,6 +17,7 @@ const config: ExperimentConfig = {
   runs: 16,
   earlyExit: false,
   timeout: 1800,
+  env: sanityEvalEnv,
   evals: nonMcpEvals,
   setup: withGeminiWorkspaceTrust(createSanitySkillsSetup('gemini')),
   onRunComplete: redactSecrets,

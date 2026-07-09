@@ -1,7 +1,7 @@
 import type { SetupFunction } from '@vercel/agent-eval';
-import { baseSetup, nonMcpEvals } from './base-setup.js';
+import { baseSetup, nonMcpEvals, sanityEvalEnv } from './base-setup.js';
 
-export { nonMcpEvals };
+export { nonMcpEvals, sanityEvalEnv };
 
 export function createSanitySkillsSetup(agent: string): SetupFunction {
   return async (sandbox) => {
