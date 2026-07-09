@@ -3,7 +3,7 @@ import { createClient } from '@sanity/client';
 
 const FIXTURE_ORG_ID = 'oEibUYrzC';
 const FIXTURE_PROJECT_ID = 'k6xtz0tk';
-const DEFAULT_SANITY_API_HOST = 'https://api.sanity.work';
+const SANITY_API_HOST = 'https://api.sanity.work';
 const SANITY_API_VERSION = '2021-06-07';
 
 const REQUIRED_ENV_VARS = ['SANITY_AUTH_TOKEN'];
@@ -18,9 +18,8 @@ function requireEnvVars(): void {
 }
 
 async function checkSanityAccess(token: string): Promise<void> {
-  const apiHost = process.env.SANITY_API_HOST || DEFAULT_SANITY_API_HOST;
   const client = createClient({
-    apiHost,
+    apiHost: SANITY_API_HOST,
     apiVersion: SANITY_API_VERSION,
     token,
     useCdn: false,
@@ -30,7 +29,7 @@ async function checkSanityAccess(token: string): Promise<void> {
   try {
     await client.users.getById('me');
   } catch (error) {
-    throw new Error(`SANITY_AUTH_TOKEN could not authenticate against ${apiHost}`, { cause: error });
+    throw new Error(`SANITY_AUTH_TOKEN could not authenticate against ${SANITY_API_HOST}`, { cause: error });
   }
 
   try {
