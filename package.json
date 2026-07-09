@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "precheck": "node scripts/pre-check.ts",
     "test-eval": "node scripts/test-eval.ts",
     "cleanup-eval-projects": "node scripts/cleanup-eval-projects.ts",
     "export-results": "node scripts/export-results.ts",
