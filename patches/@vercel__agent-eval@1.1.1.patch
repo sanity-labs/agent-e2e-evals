@@ -1,0 +1,329 @@
+diff --git a/dist/lib/agents/claude-code.js b/dist/lib/agents/claude-code.js
+index 52991d9348eef67b6dfd2bef9e8de7570fdb0586..63a0c21ff6789a6b8d8d6e8d6b4563d60ef1a718 100644
+--- a/dist/lib/agents/claude-code.js
++++ b/dist/lib/agents/claude-code.js
+@@ -152,6 +152,7 @@ export function createClaudeCodeAgent({ useVercelAiGateway }) {
+                     timeout: options.timeout,
+                     runtime: 'node24',
+                     backend: options.sandbox,
++                    env: options.env,
+                 });
+                 // Check for abort after sandbox creation (abort may have fired during create)
+                 if (aborted) {
+@@ -249,7 +250,7 @@ export function createClaudeCodeAgent({ useVercelAiGateway }) {
+                     await injectTranscriptContext(sandbox, transcript, 'claude-code', options.model);
+                 }
+                 // Run validation scripts
+-                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation);
++                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation, options.env);
+                 // Capture generated files
+                 const { generatedFiles, deletedFiles } = await captureGeneratedFiles(sandbox);
+                 hasReturned = true;
+diff --git a/dist/lib/agents/codex.js b/dist/lib/agents/codex.js
+index 54101d1b7aea2a007d9d17e84b52f31988758389..200809dbfcf639688adcda7af296487601c7df10 100644
+--- a/dist/lib/agents/codex.js
++++ b/dist/lib/agents/codex.js
+@@ -212,6 +212,7 @@ export function createCodexAgent({ useVercelAiGateway }) {
+                     timeout: options.timeout,
+                     runtime: 'node24',
+                     backend: options.sandbox,
++                    env: options.env,
+                 });
+                 // Check for abort after sandbox creation (abort may have fired during create)
+                 if (aborted) {
+@@ -311,7 +312,7 @@ EOF`);
+                     await injectTranscriptContext(sandbox, transcript, 'codex', options.model);
+                 }
+                 // Run validation scripts
+-                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation);
++                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation, options.env);
+                 // Capture generated files
+                 const { generatedFiles, deletedFiles } = await captureGeneratedFiles(sandbox);
+                 return {
+diff --git a/dist/lib/agents/cursor.js b/dist/lib/agents/cursor.js
+index a3b274b7459bb0a6044ebb6422f46f06dbbe4b85..ed5087bc8578df1d7b23b12f5afaf0998514a47b 100644
+--- a/dist/lib/agents/cursor.js
++++ b/dist/lib/agents/cursor.js
+@@ -80,6 +80,7 @@ export function createCursorAgent() {
+                     timeout: options.timeout,
+                     runtime: 'node24',
+                     backend: options.sandbox,
++                    env: options.env,
+                 });
+                 // Check for abort after sandbox creation (abort may have fired during create)
+                 if (aborted) {
+@@ -155,7 +156,7 @@ export function createCursorAgent() {
+                 // Inject transcript context so EVAL.ts tests can assert on agent behavior
+                 await injectTranscriptContext(sandbox, transcript, 'cursor', options.model);
+                 // Run validation scripts
+-                const validationResults = await runValidation(sandbox, options.scripts ?? []);
++                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation, options.env);
+                 // Capture generated files
+                 const { generatedFiles, deletedFiles } = await captureGeneratedFiles(sandbox);
+                 return {
+diff --git a/dist/lib/agents/gemini.js b/dist/lib/agents/gemini.js
+index 961443b1f082eecdf4d783b810f65a2afb093369..2926a5b72b6f79d7954a2ae04f68be149c86656a 100644
+--- a/dist/lib/agents/gemini.js
++++ b/dist/lib/agents/gemini.js
+@@ -80,6 +80,7 @@ export function createGeminiAgent() {
+                     timeout: options.timeout,
+                     runtime: 'node24',
+                     backend: options.sandbox,
++                    env: options.env,
+                 });
+                 // Check for abort after sandbox creation (abort may have fired during create)
+                 if (aborted) {
+@@ -156,7 +157,7 @@ export function createGeminiAgent() {
+                 // Inject transcript context so EVAL.ts tests can assert on agent behavior
+                 await injectTranscriptContext(sandbox, transcript, 'gemini', options.model);
+                 // Run validation scripts
+-                const validationResults = await runValidation(sandbox, options.scripts ?? []);
++                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation, options.env);
+                 // Capture generated files
+                 const { generatedFiles, deletedFiles } = await captureGeneratedFiles(sandbox);
+                 return {
+diff --git a/dist/lib/agents/opencode.js b/dist/lib/agents/opencode.js
+index f62522ad85c1731fe6f2d7ea63a8dc88826f1338..ecaf94a147eb618b8d804bd2bae9d3718f6d3c4a 100644
+--- a/dist/lib/agents/opencode.js
++++ b/dist/lib/agents/opencode.js
+@@ -183,6 +183,7 @@ export function createOpenCodeAgent() {
+                     timeout: options.timeout,
+                     runtime: 'node24',
+                     backend: options.sandbox,
++                    env: options.env,
+                 });
+                 // Check for abort after sandbox creation (abort may have fired during create)
+                 if (aborted) {
+@@ -312,7 +313,7 @@ export function createOpenCodeAgent() {
+                     await injectTranscriptContext(sandbox, transcript, 'vercel-ai-gateway/opencode', options.model);
+                 }
+                 // Run validation scripts
+-                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation);
++                const validationResults = await runValidation(sandbox, options.scripts ?? [], options.validation, options.env);
+                 // Capture generated files
+                 const { generatedFiles, deletedFiles } = await captureGeneratedFiles(sandbox);
+                 return {
+diff --git a/dist/lib/agents/shared.d.ts b/dist/lib/agents/shared.d.ts
+index f439181a3abad6ec2db15be031572531f715af38..1538ae8f30fd9d921c1118a7f8c897a449ef63a4 100644
+--- a/dist/lib/agents/shared.d.ts
++++ b/dist/lib/agents/shared.d.ts
+@@ -30,7 +30,7 @@ export interface NeutralWorkspace {
+ /**
+  * Run validation scripts in the sandbox.
+  */
+-export declare function runValidation(sandbox: AnySandbox, scripts: string[], validation?: ValidationMode): Promise<ValidationResults>;
++export declare function runValidation(sandbox: AnySandbox, scripts: string[], validation?: ValidationMode, env?: Record<string, string>): Promise<ValidationResults>;
+ export declare function prepareNeutralWorkspace(sandbox: AnySandbox): Promise<NeutralWorkspace>;
+ export declare function initGitAndCommit(sandbox: AnySandbox): Promise<void>;
+ /**
+diff --git a/dist/lib/agents/shared.js b/dist/lib/agents/shared.js
+index 8f3c7c5d10e67383a0a69e15292653542d84a99e..c43666eb8009cf99728138eb9ec7b7335f9e85ff 100644
+--- a/dist/lib/agents/shared.js
++++ b/dist/lib/agents/shared.js
+@@ -40,7 +40,7 @@ async function detectEvalFile(sandbox) {
+ /**
+  * Run validation scripts in the sandbox.
+  */
+-export async function runValidation(sandbox, scripts, validation = 'vitest') {
++export async function runValidation(sandbox, scripts, validation = 'vitest', env) {
+     const results = {
+         allPassed: true,
+         scripts: {},
+@@ -49,7 +49,7 @@ export async function runValidation(sandbox, scripts, validation = 'vitest') {
+         // Detect which eval file exists (EVAL.ts or EVAL.tsx)
+         const evalFile = await detectEvalFile(sandbox);
+         // Always run vitest for the eval file (explicitly specify the file)
+-        const testResult = await sandbox.runCommand('npx', ['vitest', 'run', evalFile]);
++        const testResult = await sandbox.runCommand('npx', ['vitest', 'run', evalFile], { env });
+         results.test = {
+             success: testResult.exitCode === 0,
+             output: testResult.stdout + testResult.stderr,
+@@ -60,7 +60,7 @@ export async function runValidation(sandbox, scripts, validation = 'vitest') {
+     }
+     // Run configured scripts
+     for (const script of scripts) {
+-        const scriptResult = await sandbox.runCommand('npm', ['run', script]);
++        const scriptResult = await sandbox.runCommand('npm', ['run', script], { env });
+         const result = {
+             success: scriptResult.exitCode === 0,
+             output: scriptResult.stdout + scriptResult.stderr,
+diff --git a/dist/lib/agents/types.d.ts b/dist/lib/agents/types.d.ts
+index 10658e1c0437b029a75014fbc39cf997262adb7b..7972f1c6b7e5f3d714a9776f66b55016a239aa55 100644
+--- a/dist/lib/agents/types.d.ts
++++ b/dist/lib/agents/types.d.ts
+@@ -26,6 +26,8 @@ export interface AgentRunOptions {
+     signal?: AbortSignal;
+     /** Sandbox backend to use */
+     sandbox?: SandboxBackend | 'auto';
++    /** Default environment variables for every command run inside the sandbox */
++    env?: Record<string, string>;
+     /**
+      * Enable each agent's web research tools so answers can produce
+      * citation/source data. Default false: command construction is unchanged
+diff --git a/dist/lib/config.js b/dist/lib/config.js
+index e6537cf2cff8da6c806baf18f90f12ce76760b39..59524e8a55f0ae425111bed42f0c938a683e0d6a 100644
+--- a/dist/lib/config.js
++++ b/dist/lib/config.js
+@@ -42,6 +42,7 @@ const experimentConfigSchema = z.object({
+     timeout: z.number().positive().optional(),
+     setup: z.function().optional(),
+     sandbox: z.enum(['vercel', 'docker', 'auto']).optional(),
++    env: z.record(z.string()).optional(),
+     editPrompt: z.function().args(z.string()).returns(z.string()).optional(),
+     copyFiles: z.enum(['none', 'changed', 'all']).optional(),
+     agentOptions: z.record(z.unknown()).optional(),
+@@ -92,6 +93,7 @@ export function resolveConfig(config) {
+         timeout: config.timeout ?? CONFIG_DEFAULTS.timeout,
+         setup: config.setup,
+         sandbox: config.sandbox ?? CONFIG_DEFAULTS.sandbox,
++        env: config.env,
+         editPrompt: config.editPrompt,
+         copyFiles: config.copyFiles ?? CONFIG_DEFAULTS.copyFiles,
+         agentOptions: config.agentOptions,
+diff --git a/dist/lib/docker-sandbox.d.ts b/dist/lib/docker-sandbox.d.ts
+index 94bfe8d341e445070b2891ed04ff7cf9a6ab9a6a..75d2aa0b227122247e5f6fb13de880fd3935f081 100644
+--- a/dist/lib/docker-sandbox.d.ts
++++ b/dist/lib/docker-sandbox.d.ts
+@@ -12,6 +12,8 @@ export interface DockerSandboxOptions {
+     timeout?: number;
+     /** Runtime environment */
+     runtime?: 'node20' | 'node24';
++    /** Default environment variables for every command run in the sandbox */
++    env?: Record<string, string>;
+ }
+ /**
+  * Docker-based sandbox manager.
+@@ -23,6 +25,7 @@ export declare class DockerSandboxManager implements Sandbox {
+     private _containerId;
+     private timeout;
+     private runtime;
++    private defaultEnv;
+     private _workingDirectory;
+     constructor(options?: DockerSandboxOptions);
+     /**
+diff --git a/dist/lib/docker-sandbox.js b/dist/lib/docker-sandbox.js
+index 99df8fb3ab72003144926f19243baf6b2102f050..5b55800f7008a7a7a207c07f7d552a978036859c 100644
+--- a/dist/lib/docker-sandbox.js
++++ b/dist/lib/docker-sandbox.js
+@@ -42,11 +42,13 @@ export class DockerSandboxManager {
+     _containerId = '';
+     timeout;
+     runtime;
++    defaultEnv;
+     _workingDirectory = CONTAINER_WORKDIR;
+     constructor(options = {}) {
+         this.docker = new Docker();
+         this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
+         this.runtime = options.runtime ?? 'node24';
++        this.defaultEnv = options.env ?? {};
+     }
+     /**
+      * Create and start a new Docker sandbox.
+@@ -144,6 +146,7 @@ export class DockerSandboxManager {
+     async runCommand(command, args = [], options = {}) {
+         // Ensure npm global binaries are in PATH
+         const env = {
++            ...this.defaultEnv,
+             ...options.env,
+             PATH: `${NPM_GLOBAL_DIR}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
+         };
+diff --git a/dist/lib/runner.d.ts b/dist/lib/runner.d.ts
+index 5bfeab88d10307c7660febf12c298a0ee02f74eb..6c506642f21f12628cfb599d8b2d1c21fb8f678e 100644
+--- a/dist/lib/runner.d.ts
++++ b/dist/lib/runner.d.ts
+@@ -66,6 +66,7 @@ export declare function runSingleEval<T extends ResolvedExperimentConfig['model'
+     scripts?: string[];
+     validation?: ResolvedExperimentConfig['validation'];
+     sandbox?: ResolvedExperimentConfig['sandbox'];
++    env?: ResolvedExperimentConfig['env'];
+     editPrompt?: (prompt: string) => string;
+     verbose?: boolean;
+     agentOptions?: ResolvedExperimentConfig['agentOptions'];
+diff --git a/dist/lib/runner.js b/dist/lib/runner.js
+index 4a16529f3605e0bc8813237f1e9245f96461a96d..2ae671244fa93aa70a57c27327df9c7c64984e0e 100644
+--- a/dist/lib/runner.js
++++ b/dist/lib/runner.js
+@@ -118,6 +118,7 @@ export async function runExperiment(options) {
+                 validation: config.validation,
+                 signal: attemptController.signal,
+                 sandbox: config.sandbox,
++                env: config.env,
+                 agentOptions: config.agentOptions,
+                 webResearch: config.webResearch,
+             }),
+@@ -286,6 +287,7 @@ export async function runSingleEval(fixture, options) {
+             scripts: options.scripts,
+             validation: options.validation,
+             sandbox: options.sandbox,
++            env: options.env,
+             agentOptions: options.agentOptions,
+             webResearch: options.webResearch,
+         });
+diff --git a/dist/lib/sandbox.d.ts b/dist/lib/sandbox.d.ts
+index 5f2b571e95a3c71bf40d7651496f7a11e4be5ed9..a9394e3f4bf8aaf308f10a1ba7ec5ba0bd9687eb 100644
+--- a/dist/lib/sandbox.d.ts
++++ b/dist/lib/sandbox.d.ts
+@@ -48,6 +48,8 @@ export interface SandboxOptions {
+     runtime?: 'node20' | 'node24';
+     /** Sandbox backend to use. 'auto' will use Vercel if token present, else Docker. @default 'auto' */
+     backend?: SandboxBackend | 'auto';
++    /** Default environment variables for every command run inside the sandbox */
++    env?: Record<string, string>;
+     /** Optional explicit Vercel auth token for sandbox API auth */
+     token?: string;
+     /** Optional explicit Vercel team ID for sandbox API auth */
+diff --git a/dist/lib/sandbox.js b/dist/lib/sandbox.js
+index 4c5aeaaeae890c8a062e9d80638dddb87e25b666..55266c01e4a17971b8f8d11e95e0d9a17ec02f36 100644
+--- a/dist/lib/sandbox.js
++++ b/dist/lib/sandbox.js
+@@ -97,6 +97,7 @@ export class SandboxManager {
+         const sandbox = await VercelSandbox.create({
+             runtime,
+             timeout,
++            env: options.env,
+             ...(credentials ?? {}),
+         });
+         return new SandboxManager(sandbox);
+@@ -269,11 +270,13 @@ export async function createSandbox(options = {}) {
+         return DockerSandboxManager.create({
+             timeout: options.timeout,
+             runtime: options.runtime,
++            env: options.env,
+         });
+     }
+     return SandboxManager.create({
+         timeout: options.timeout,
+         runtime: options.runtime,
++        env: options.env,
+     });
+ }
+ /**
+diff --git a/dist/lib/types.d.ts b/dist/lib/types.d.ts
+index d02938a41b22b3a2e2c7049045c4ec237489ab8b..3dcf455054b785220129a21811fa93586b262138 100644
+--- a/dist/lib/types.d.ts
++++ b/dist/lib/types.d.ts
+@@ -96,6 +96,8 @@ export interface ExperimentConfig {
+     setup?: SetupFunction;
+     /** Sandbox backend to use. @default 'auto' (Vercel if token present, else Docker) */
+     sandbox?: SandboxBackend | 'auto';
++    /** Default environment variables for every command run inside the sandbox. @default undefined */
++    env?: Record<string, string>;
+     /** Optional function to modify the prompt before running the experiment. @default undefined */
+     editPrompt?: (prompt: string) => string;
+     /** Whether to copy project files into the result directory.
+@@ -131,6 +133,7 @@ export interface ResolvedExperimentConfig {
+     timeout: number;
+     setup?: SetupFunction;
+     sandbox: SandboxBackend | 'auto';
++    env?: Record<string, string>;
+     editPrompt?: (prompt: string) => string;
+     copyFiles: 'none' | 'changed' | 'all';
+     agentOptions?: Record<string, unknown>;
+@@ -153,6 +156,7 @@ export interface RunnableExperimentConfig {
+     timeout: number;
+     setup?: SetupFunction;
+     sandbox: SandboxBackend | 'auto';
++    env?: Record<string, string>;
+     editPrompt?: (prompt: string) => string;
+     copyFiles: 'none' | 'changed' | 'all';
+     agentOptions?: Record<string, unknown>;

@@ -1,5 +1,7 @@
 import type { SetupFunction } from '@vercel/agent-eval';
-import { baseSetup } from './base-setup.js';
+import { baseSetup, sanityEvalEnv } from './base-setup.js';
+
+export { sanityEvalEnv };
 
 const disabledTools = ['list_sanity_rules', 'get_sanity_rules'];
 

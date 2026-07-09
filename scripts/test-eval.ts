@@ -43,7 +43,7 @@ const tempName = `_temp_${evalName.replace(/[^a-zA-Z0-9_-]/g, '-')}-${process.pi
 const tempPath = resolve(experimentsDir, `${tempName}.ts`);
 
 const fileContents = `import type { ExperimentConfig } from '@vercel/agent-eval';
-import { baseSetup } from './lib/base-setup.js';
+import { baseSetup, sanityEvalEnv } from './lib/base-setup.js';
 
 const config: ExperimentConfig = {
   agent: ${JSON.stringify(agent)},
@@ -52,6 +52,7 @@ const config: ExperimentConfig = {
   runs: ${runs},
   earlyExit: false,
   timeout: 60 * 15,
+  env: sanityEvalEnv,
   evals: ${JSON.stringify(evalName)},
   setup: baseSetup,
 };

@@ -1,7 +1,7 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
 import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { redactSecrets } from './lib/redact-secrets.js';
-import { createSanitySkillsSetup, nonMcpEvals } from './lib/sanity-skills-setup.js';
+import { createSanitySkillsSetup, nonMcpEvals, sanityEvalEnv } from './lib/sanity-skills-setup.js';
 
 export const experimentMetadata = {
   modelName: 'gpt-5.4',
@@ -17,6 +17,7 @@ const config: ExperimentConfig = {
   runs: 16,
   earlyExit: false,
   timeout: 1800,
+  env: sanityEvalEnv,
   evals: nonMcpEvals,
   setup: createSanitySkillsSetup('codex'),
   onRunComplete: redactSecrets,

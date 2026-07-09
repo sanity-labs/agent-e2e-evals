@@ -1,7 +1,7 @@
 import type { ExperimentConfig } from '@vercel/agent-eval';
 import type { ExperimentMetadata } from './lib/experiment-metadata.js';
 import { redactSecrets } from './lib/redact-secrets.js';
-import { sanityMcpSetup } from './lib/sanity-mcp-setup.js';
+import { sanityMcpSetup, sanityEvalEnv } from './lib/sanity-mcp-setup.js';
 
 export const experimentMetadata = {
   modelName: 'claude-sonnet-4.6',
@@ -17,6 +17,7 @@ const config: ExperimentConfig = {
   runs: 16,
   earlyExit: false,
   timeout: 1800,
+  env: sanityEvalEnv,
   agentOptions: { effort: 'high' },
   setup: sanityMcpSetup,
   onRunComplete: redactSecrets,
