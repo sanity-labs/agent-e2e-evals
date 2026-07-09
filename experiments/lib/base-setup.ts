@@ -1,9 +1,11 @@
 import type { EvalFilter, SetupFunction } from '@vercel/agent-eval';
+import { runPreCheckOnce } from '../../scripts/pre-check.ts';
 
 // `mcp-smoketest` requires the Sanity MCP server to be configured, this filter excludes it from runners without MCP configured
 export const nonMcpEvals: EvalFilter = (name) => name !== 'mcp-smoketest';
 
 export const baseSetup: SetupFunction = async (sandbox) => {
+  await runPreCheckOnce();
   const sanityAuthToken = process.env.SANITY_AUTH_TOKEN ?? 'placeholder';
   const dotEnv = [
     `SANITY_API_READ_TOKEN=placeholder`,
