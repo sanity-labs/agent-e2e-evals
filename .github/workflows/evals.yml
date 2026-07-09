@@ -144,7 +144,7 @@ jobs:
         if: ${{ always() && inputs.dry != true }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
+          SANITY_ADMIN_AUTH_TOKEN: ${{ secrets.SANITY_ADMIN_AUTH_TOKEN }}
         run: pnpm run cleanup-eval-projects -- --delete
 
       - name: Report eval exit status

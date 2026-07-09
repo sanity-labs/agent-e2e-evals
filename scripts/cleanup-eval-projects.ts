@@ -11,16 +11,13 @@ import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { EVAL_DISPLAY_NAMES } from './common.ts';
 
-const FIXTURE_ORG_ID = process.env.SANITY_EVAL_ORGANIZATION_ID ?? 'oEibUYrzC';
-const PINNED_PROJECT_ID = process.env.SANITY_EVAL_PROJECT_ID ?? 'k6xtz0tk';
 const MODEL = 'claude-haiku-4-5';
 const REASONING = 'medium';
-const SANITY_API_HOST =
-  process.env.SANITY_INTERNAL_ENV === 'production' ? 'https://api.sanity.io' : 'https://api.sanity.work';
+const FIXTURE_ORG_ID = 'oEibUYrzC';
 
 // Add project IDs that should never be deleted here.
 const NEVER_DELETE_PROJECT_IDS = [
-  PINNED_PROJECT_ID,
+  'k6xtz0tk',
   'ewarjnkq',
   '43szst9a',
   '6yyzwg5d',
@@ -35,7 +32,7 @@ const NEVER_DELETE_PROJECT_IDS = [
   'edsoi7in',
   'hqrr0b0k',
   'pi46dew1',
-];
+] as const;
 
 // Add exact project display names that should always be deleted here.
 const ALWAYS_DELETE_PROJECT_NAMES = [
@@ -45,7 +42,7 @@ const ALWAYS_DELETE_PROJECT_NAMES = [
   'Sanity Next Starter',
   'Sanity Nextjs Starter',
   'Sanity Next.js Starter',
-];
+] as const;
 
 interface Project {
   id: string;
@@ -73,39 +70,34 @@ if (values.help) {
   console.log(`Usage: pnpm cleanup-eval-projects [--delete]
 
 Environment:
-  SANITY_AUTH_TOKEN              Required Sanity token.
-  ANTHROPIC_API_KEY              Required Anthropic API key.
-  SANITY_EVAL_ORGANIZATION_ID    Fixture org ID. Defaults to ${FIXTURE_ORG_ID}.
-  SANITY_EVAL_PROJECT_ID         Project ID that must never be deleted. Defaults to ${PINNED_PROJECT_ID}.
+  SANITY_ADMIN_AUTH_TOKEN        Sanity API key with billing privileges.
+  ANTHROPIC_API_KEY              Anthropic API key.
   DRY=true                       Force dry-run mode, even with --delete.
 `);
   process.exit(0);
 }
 
-const sanityToken = requireEnv('SANITY_AUTH_TOKEN');
-requireEnv('ANTHROPIC_API_KEY');
+const parsedEnv = z
+  .looseObject({
+    SANITY_ADMIN_AUTH_TOKEN: z.string(),
+    ANTHROPIC_API_KEY: z.string(),
+    SANITY_API_HOST: z.url(),
+    DRY: z.stringbool().optional(),
+  })
+  .parse(process.env);
 
-const shouldDelete = values.delete && process.env.DRY !== 'true';
+const shouldDelete = values.delete && parsedEnv.DRY !== true;
 const protectedProjectIds = new Set(NEVER_DELETE_PROJECT_IDS);
 const alwaysDeleteProjectNames = new Set(ALWAYS_DELETE_PROJECT_NAMES);
 
 const sanityClient = createClient({
-  apiHost: SANITY_API_HOST,
+  apiHost: parsedEnv.SANITY_API_HOST,
   apiVersion: '2021-06-07',
-  projectId: PINNED_PROJECT_ID,
-  token: sanityToken,
+  projectId: NEVER_DELETE_PROJECT_IDS[0],
+  token: parsedEnv.SANITY_ADMIN_AUTH_TOKEN,
   useCdn: false,
   useProjectHostname: false,
 });
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    console.error(`${name} environment variable is required.`);
-    process.exit(1);
-  }
-  return value;
-}
 
 async function listProjects(): Promise<Project[]> {
   const projects = await sanityClient.projects.list({
