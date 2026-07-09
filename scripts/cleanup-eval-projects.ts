@@ -13,7 +13,7 @@ import { EVAL_DISPLAY_NAMES } from './common.ts';
 import { loginServiceAccount } from './sanity-service-account-auth.ts';
 
 const MODEL = 'claude-haiku-4-5';
-const REASONING = 'medium';
+const REASONING = 'low';
 const FIXTURE_ORG_ID = 'oEibUYrzC';
 
 // Add project IDs that should never be deleted here.
