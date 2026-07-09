@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test-eval": "node scripts/test-eval.ts",
+    "cleanup-eval-projects": "node scripts/cleanup-eval-projects.ts",
     "export-results": "node scripts/export-results.ts",
     "playground": "agent-eval-playground",
     "playground:watch": "agent-eval-playground --watch",
@@ -18,15 +19,20 @@
     "format:fix": "oxfmt"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "^4.0.8",
+    "@sanity/client": "^7.23.0",
     "@types/node": "^24.12.2",
     "@vercel/agent-eval": "^1.1.1",
     "@vercel/agent-eval-playground": "^0.1.3",
+    "ai": "^7.0.16",
+    "got": "^15.1.0",
     "jiti": "^2.7.0",
     "knip": "^6.15.0",
     "map-obj": "^6.0.0",
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "tinyexec": "^1.1.1",
+    "tough-cookie": "^6.0.2",
     "typescript": "^6.0.3",
     "vitest": "^2.1.0",
     "zod": "^4.4.3"
