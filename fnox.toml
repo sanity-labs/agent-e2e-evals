@@ -20,7 +20,8 @@ GEMINI_API_KEY = { provider = "op", value = "agent-e2e-evals gemini-api-key/pass
 SANITY_AUTH_TOKEN = { provider = "op", value = "agent-e2e-evals sanity-staging-auth-token/password" }
 SANITY_MCP_URL = { default = "https://mcp.sanity.work/" }
 
-# Vercel Sandbox config - unused if you don't provide VERCEL_TOKEN/VERCEL_OIDC_TOKEN
+# Vercel Sandbox config
+VERCEL_TOKEN = { provider = "op", value = "agent-e2e-evals vercel-token/password" }
 VERCEL_PROJECT_ID = { default = "prj_nkvmq75NiBAHvalqCiwEw18MoEn6" }
 VERCEL_TEAM_ID = { default = "team_oqU06TUi6OGH315dQZ2wFh08" }
 
