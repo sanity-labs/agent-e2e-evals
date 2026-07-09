@@ -42,22 +42,25 @@ const ALWAYS_DELETE_PROJECT_NAMES = [
   'Sanity Next Starter',
   'Sanity Nextjs Starter',
   'Sanity Next.js Starter',
+  'Next.js App Router Starter',
 ] as const;
 
 interface Project {
   id: string;
   displayName: string;
 }
-
 const cleanupDecisionSchema = z.object({
-  decisions: z.array(
-    z.object({
-      projectId: z.string(),
-      shouldDelete: z.boolean(),
-      reason: z.string(),
-    }),
-  ),
+  projectId: z.string(),
+  shouldDelete: z.boolean(),
+  reason: z.string(),
 });
+
+const cleanupDecisionsSchema = z.object({
+  decisions: z.array(cleanupDecisionSchema),
+});
+
+type CleanupDecision = z.infer<typeof cleanupDecisionSchema>;
+type ProjectCleanupGroup = 'mustNotDelete' | 'mustDelete' | 'needsLlm';
 
 const { values } = parseArgs({
   options: {
@@ -87,8 +90,8 @@ const parsedEnv = z
   .parse(process.env);
 
 const shouldDelete = values.delete && parsedEnv.DRY !== true;
-const protectedProjectIds = new Set(NEVER_DELETE_PROJECT_IDS);
-const alwaysDeleteProjectNames = new Set(ALWAYS_DELETE_PROJECT_NAMES);
+const protectedProjectIds: ReadonlySet<string> = new Set(NEVER_DELETE_PROJECT_IDS);
+const alwaysDeleteProjectNames: ReadonlySet<string> = new Set(ALWAYS_DELETE_PROJECT_NAMES);
 
 const sanityClient = createClient({
   apiHost: parsedEnv.SANITY_API_HOST,
@@ -113,12 +116,12 @@ async function listProjects(): Promise<Project[]> {
     });
 }
 
-async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cleanupDecisionSchema>['decisions']> {
+async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cleanupDecisionsSchema>['decisions']> {
   const projectIds = new Set(projects.map((project) => project.id));
   const { output } = await generateText({
     model: anthropic(MODEL),
     reasoning: REASONING,
-    output: Output.object({ schema: cleanupDecisionSchema }),
+    output: Output.object({ schema: cleanupDecisionsSchema }),
     instructions: [
       'Review a list of Sanity projects and decide which ones should be deleted.',
       'Projects that were automatically created as part of our automated eval suite should be marked for removal.',
@@ -130,7 +133,6 @@ async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cle
     prompt: JSON.stringify(
       {
         fixtureOrganizationId: FIXTURE_ORG_ID,
-        protectedProjectIds: [...protectedProjectIds],
         projects,
       },
       null,
@@ -155,36 +157,7 @@ async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cle
     }
   }
 
-  return output.decisions.map((decision) =>
-    protectedProjectIds.has(decision.projectId) ? { ...decision, shouldDelete: false } : decision,
-  );
-}
-
-function applyHardcodedPolicy(
-  decisions: z.infer<typeof cleanupDecisionSchema>['decisions'],
-  projectsById: Map<string, Project>,
-): z.infer<typeof cleanupDecisionSchema>['decisions'] {
-  return decisions.map((decision) => {
-    const project = projectsById.get(decision.projectId);
-
-    if (protectedProjectIds.has(decision.projectId)) {
-      return {
-        ...decision,
-        shouldDelete: false,
-        reason: 'Project ID is hardcoded as never delete.',
-      };
-    }
-
-    if (project && alwaysDeleteProjectNames.has(project.displayName)) {
-      return {
-        ...decision,
-        shouldDelete: true,
-        reason: 'Project display name is hardcoded as always delete.',
-      };
-    }
-
-    return decision;
-  });
+  return output.decisions;
 }
 
 async function deleteProject(projectId: string): Promise<void> {
@@ -201,10 +174,56 @@ if (projects.length === 0) {
   process.exit(0);
 }
 
-console.log(`Classifying projects with ${MODEL} (${REASONING} reasoning)`);
-const decisions = await classifyProjects(projects);
 const projectsById = new Map(projects.map((project) => [project.id, project]));
-const finalDecisions = applyHardcodedPolicy(decisions, projectsById);
+const projectGroups = Object.groupBy(projects, (project): ProjectCleanupGroup => {
+  if (protectedProjectIds.has(project.id)) {
+    return 'mustNotDelete';
+  }
+
+  if (alwaysDeleteProjectNames.has(project.displayName)) {
+    return 'mustDelete';
+  }
+
+  return 'needsLlm';
+});
+const mustNotDeleteProjects = projectGroups.mustNotDelete ?? [];
+const mustDeleteProjects = projectGroups.mustDelete ?? [];
+const projectsToClassify = projectGroups.needsLlm ?? [];
+
+const hardcodedDecisions: CleanupDecision[] = [
+  ...mustNotDeleteProjects.map((project) => ({
+    projectId: project.id,
+    shouldDelete: false,
+    reason: 'Project ID is hardcoded as never delete.',
+  })),
+  ...mustDeleteProjects.map((project) => ({
+    projectId: project.id,
+    shouldDelete: true,
+    reason: 'Project display name is hardcoded as always delete.',
+  })),
+];
+
+console.log(
+  `Skipping Claude classification for ${hardcodedDecisions.length} projects covered by hardcoded cleanup policy.`,
+);
+
+let classifiedDecisions: CleanupDecision[] = [];
+if (projectsToClassify.length > 0) {
+  console.log(`Classifying ${projectsToClassify.length} projects with ${MODEL} (${REASONING} reasoning)`);
+  classifiedDecisions = await classifyProjects(projectsToClassify);
+}
+
+const decisionsById = new Map(
+  [...hardcodedDecisions, ...classifiedDecisions].map((decision) => [decision.projectId, decision]),
+);
+const finalDecisions = projects.map((project) => {
+  const decision = decisionsById.get(project.id);
+  if (!decision) {
+    throw new Error(`Missing cleanup decision for project ID: ${project.id}`);
+  }
+
+  return decision;
+});
 const projectsToDelete = finalDecisions.filter((decision) => decision.shouldDelete);
 
 console.log('');
