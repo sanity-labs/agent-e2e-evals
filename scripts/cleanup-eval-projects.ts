@@ -63,6 +63,25 @@ const cleanupDecisionsSchema = z.object({
 type CleanupDecision = z.infer<typeof cleanupDecisionSchema>;
 type ProjectCleanupGroup = 'mustNotDelete' | 'mustDelete' | 'needsLlm';
 
+function formatProjectList(projects: Project[]): string {
+  return projects.map((project) => `${project.id}: ${project.displayName}`).join('\n');
+}
+
+async function withProgress<T>(message: string, run: () => Promise<T>): Promise<T> {
+  const startedAt = Date.now();
+  console.log(`${message} started.`);
+  const progressInterval = setInterval(() => {
+    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+    console.log(`${message} still running after ${elapsedSeconds}s...`);
+  }, 10_000);
+
+  try {
+    return await run();
+  } finally {
+    clearInterval(progressInterval);
+  }
+}
+
 const { values } = parseArgs({
   options: {
     delete: { type: 'boolean', default: false },
@@ -131,6 +150,7 @@ async function listProjects(): Promise<Project[]> {
 
 async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cleanupDecisionsSchema>['decisions']> {
   const projectIds = new Set(projects.map((project) => project.id));
+  const projectList = formatProjectList(projects);
   const { output } = await generateText({
     model: anthropic(MODEL),
     reasoning: REASONING,
@@ -143,14 +163,8 @@ async function classifyProjects(projects: Project[]): Promise<z.infer<typeof cle
       'Our eval suite consists of the following prompts:',
       ...Object.values(EVAL_DISPLAY_NAMES),
     ].join('\n'),
-    prompt: JSON.stringify(
-      {
-        fixtureOrganizationId: FIXTURE_ORG_ID,
-        projects,
-      },
-      null,
-      2,
-    ),
+    prompt: `Projects:
+${projectList}`,
   });
 
   const seenIds = new Set<string>();
@@ -223,7 +237,11 @@ console.log(
 let classifiedDecisions: CleanupDecision[] = [];
 if (projectsToClassify.length > 0) {
   console.log(`Classifying ${projectsToClassify.length} projects with ${MODEL} (${REASONING} reasoning)`);
-  classifiedDecisions = await classifyProjects(projectsToClassify);
+  console.log(formatProjectList(projectsToClassify));
+  classifiedDecisions = await withProgress(`Classification with ${MODEL} (${REASONING} reasoning)`, () =>
+    classifyProjects(projectsToClassify),
+  );
+  console.log(`Classification completed for ${classifiedDecisions.length} projects.`);
 }
 
 const decisionsById = new Map(
