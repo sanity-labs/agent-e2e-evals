@@ -10,6 +10,7 @@ import { createClient } from '@sanity/client';
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 import { EVAL_DISPLAY_NAMES } from './common.ts';
+import { loginServiceAccount } from './sanity-service-account-auth.ts';
 
 const MODEL = 'claude-haiku-4-5';
 const REASONING = 'medium';
@@ -73,17 +74,21 @@ if (values.help) {
   console.log(`Usage: pnpm cleanup-eval-projects [--delete]
 
 Environment:
-  SANITY_ADMIN_AUTH_TOKEN        Sanity API key with billing privileges.
-  ANTHROPIC_API_KEY              Anthropic API key.
-  DRY=true                       Force dry-run mode, even with --delete.
+  EVALS_SERVICE_ACCOUNT_EMAIL       Service account email for Sanity login.
+  EVALS_SERVICE_ACCOUNT_PASSWORD    Service account password for Sanity login.
+  RECAPTCHA_BYPASS_KEY              reCAPTCHA bypass key for staging login.
+  ANTHROPIC_API_KEY                 Anthropic API key.
+  DRY=true                          Force dry-run mode, even with --delete.
 `);
   process.exit(0);
 }
 
 const parsedEnv = z
   .looseObject({
-    SANITY_ADMIN_AUTH_TOKEN: z.string(),
     ANTHROPIC_API_KEY: z.string(),
+    EVALS_SERVICE_ACCOUNT_EMAIL: z.string(),
+    EVALS_SERVICE_ACCOUNT_PASSWORD: z.string(),
+    RECAPTCHA_BYPASS_KEY: z.string(),
     SANITY_API_HOST: z.url(),
     DRY: z.stringbool().optional(),
   })
@@ -93,11 +98,19 @@ const shouldDelete = values.delete && parsedEnv.DRY !== true;
 const protectedProjectIds: ReadonlySet<string> = new Set(NEVER_DELETE_PROJECT_IDS);
 const alwaysDeleteProjectNames: ReadonlySet<string> = new Set(ALWAYS_DELETE_PROJECT_NAMES);
 
+console.log(`Logging in as service account ${parsedEnv.EVALS_SERVICE_ACCOUNT_EMAIL}...`);
+const sanityAuthToken = await loginServiceAccount({
+  email: parsedEnv.EVALS_SERVICE_ACCOUNT_EMAIL,
+  password: parsedEnv.EVALS_SERVICE_ACCOUNT_PASSWORD,
+  recaptchaBypassKey: parsedEnv.RECAPTCHA_BYPASS_KEY,
+  apiHost: parsedEnv.SANITY_API_HOST,
+});
+console.log('Service account login successful.');
+
 const sanityClient = createClient({
   apiHost: parsedEnv.SANITY_API_HOST,
   apiVersion: '2021-06-07',
-  projectId: NEVER_DELETE_PROJECT_IDS[0],
-  token: parsedEnv.SANITY_ADMIN_AUTH_TOKEN,
+  token: sanityAuthToken,
   useCdn: false,
   useProjectHostname: false,
 });

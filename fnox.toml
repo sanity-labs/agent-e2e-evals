@@ -26,5 +26,7 @@ VERCEL_TEAM_ID = { default = "team_oqU06TUi6OGH315dQZ2wFh08" }
 
 # Local scripts
 SANITY_INTERNAL_ENV = { default = "staging" }
-SANITY_ADMIN_AUTH_TOKEN = { provider = "op", value = "agent-e2e-evals sanity-staging-admin-auth-token/password" }
+EVALS_SERVICE_ACCOUNT_EMAIL = { provider = "op", value = "mellon evals service account/username", if_missing = "warn" }
+EVALS_SERVICE_ACCOUNT_PASSWORD = { provider = "op", value = "mellon evals service account/password", if_missing = "warn" }
+RECAPTCHA_BYPASS_KEY = { provider = "op", value = "Legion E2E staging reCAPTCHA bypass token/password", if_missing = "warn" }
 SANITY_API_HOST = { default = "https://api.sanity.work" }
