@@ -3,7 +3,7 @@
  * Quick local eval test runner.
  *
  * Writes a temporary experiment file under `experiments/_temp_*.ts` (the
- * `_temp_` prefix is ignored by `agent-eval run-all`), invokes the
+ * `_temp_` prefix is ignored by `agent-eval run`), invokes the
  * `agent-eval` CLI against it, and cleans up on exit.
  *
  * Usage:
