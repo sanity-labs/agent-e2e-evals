@@ -56,6 +56,8 @@ You can use `pnpm run` or `mise tasks` to get a list of scripts to run.
 
 ### Running evals
 
+Run `pnpm precheck` before starting a long eval run to validate required env vars and Sanity staging access.
+
 If you're working on one eval you can use `pnpm test-eval` to run a single eval specifically, rather than running the whole suite.
 Use `pnpm test-eval --help` to see the options for the script.
 
