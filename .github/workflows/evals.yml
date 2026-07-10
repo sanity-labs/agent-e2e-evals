@@ -11,10 +11,6 @@ on:
         description: 'Bypass fingerprint cache and re-run everything'
         type: boolean
         default: false
-      dry:
-        description: 'Preview what would run without making API calls'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -47,7 +43,6 @@ jobs:
     timeout-minutes: 350
     steps:
       - name: Generate Squiggler app token
-        if: ${{ inputs.dry != true }}
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
@@ -84,7 +79,6 @@ jobs:
           VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           EXPERIMENTS: ${{ inputs.experiments }}
           FORCE: ${{ inputs.force }}
-          DRY: ${{ inputs.dry }}
         run: |
           set -uo pipefail
           ARGS=()
@@ -95,29 +89,31 @@ jobs:
               trimmed="$(echo "${exp}" | xargs)"
               [[ -n "${trimmed}" ]] && EXPS_ARGS+=("${trimmed}")
             done
+          else
+            EXPS_ARGS=("*")
           fi
+          mkdir -p results
+          set +e
           ARGS+=("${EXPS_ARGS[@]}")
           [[ "${FORCE}" == "true" ]] && ARGS+=("--force")
-          [[ "${DRY}" == "true" ]] && ARGS+=("--dry")
-          set +e
-          pnpm exec agent-eval run-all "${ARGS[@]}"
+          pnpm exec agent-eval run "${ARGS[@]}"
           status=$?
           set -e
           echo "exit-code=${status}" >> "$GITHUB_OUTPUT"
           exit 0
 
       - name: Export results
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() }}
         run: pnpm run export-results
 
       - name: Redact raw eval results
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() }}
         env:
           SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
         run: pnpm run redact-results
 
       - name: Upload raw eval results artifact
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: eval-results-raw-${{ github.run_id }}
@@ -126,7 +122,7 @@ jobs:
           retention-days: 30
 
       - name: Commit and push published results
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() }}
         run: |
           set -euo pipefail
           git config user.name 'squiggler-app[bot]'
@@ -141,7 +137,7 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Cleanup eval projects
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           EVALS_SERVICE_ACCOUNT_EMAIL: ${{ vars.EVALS_SERVICE_ACCOUNT_EMAIL }}
@@ -150,7 +146,7 @@ jobs:
         run: pnpm run cleanup-eval-projects --delete
 
       - name: Report eval exit status
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() }}
         env:
           EVAL_EXIT_CODE: ${{ steps.run-evals.outputs.exit-code }}
         run: |
