@@ -4,15 +4,15 @@ import { redactSecrets } from './lib/redact-secrets.js';
 import { sanityMcpSetup, sanityEvalEnv } from './lib/sanity-mcp-setup.js';
 
 export const experimentMetadata = {
-  modelName: 'gpt-5.3-codex',
-  displayName: 'GPT-5.3 Codex',
+  modelName: 'gpt-5.6-terra',
+  displayName: 'GPT-5.6 Terra',
   variant: 'mcp',
-  thinkingLevel: 'medium',
+  thinkingLevel: 'xhigh',
 } satisfies ExperimentMetadata;
 
 const config: ExperimentConfig = {
   agent: 'codex',
-  model: 'gpt-5.3-codex?reasoningEffort=medium',
+  model: 'gpt-5.6-terra?reasoningEffort=xhigh',
   scripts: ['build'],
   runs: 16,
   earlyExit: false,
