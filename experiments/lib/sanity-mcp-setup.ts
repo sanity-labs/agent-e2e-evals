@@ -79,7 +79,7 @@ export const sanityMcpSetup: SetupFunction = async (sandbox) => {
   const codexMcpToml = [
     '',
     '[mcp_servers.sanity]',
-    `url = "${mcpUrl}"`,
+    `url = ${JSON.stringify(mcpUrl)}`,
     `http_headers = { "Authorization" = "Bearer ${token}" }`,
     `disabled_tools = [${disabledTools.map((tool) => `"${tool}"`).join(', ')}]`,
     'required = true',
