@@ -1,4 +1,5 @@
 name: Evals
+run-name: "AIGRO-5021 smoke — skills ${{ inputs.skills_branch || 'default main' }}"
 
 on:
   workflow_dispatch:
@@ -116,10 +117,6 @@ jobs:
           echo "exit-code=${status}" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Export results
-        if: ${{ always() && inputs.dry != true && inputs.mcp_url == '' && inputs.skills_branch == '' }}
-        run: pnpm run export-results
-
       - name: Record eval sources
         if: ${{ always() && inputs.dry != true }}
         env:
@@ -150,30 +147,6 @@ jobs:
           path: results
           if-no-files-found: ignore
           retention-days: 30
-
-      - name: Commit and push published results
-        if: ${{ always() && inputs.dry != true && inputs.mcp_url == '' && inputs.skills_branch == '' }}
-        run: |
-          set -euo pipefail
-          git config user.name 'squiggler-app[bot]'
-          git config user.email '265501495+squiggler-app[bot]@users.noreply.github.com'
-          git add published/
-          if git diff --cached --quiet; then
-            echo 'No result changes to commit.'
-            exit 0
-          fi
-          git commit -m 'chore(published): refresh eval results [skip ci]'
-          git pull --rebase
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-
-      - name: Cleanup eval projects
-        if: ${{ always() && inputs.dry != true }}
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          EVALS_SERVICE_ACCOUNT_EMAIL: ${{ vars.EVALS_SERVICE_ACCOUNT_EMAIL }}
-          EVALS_SERVICE_ACCOUNT_PASSWORD: ${{ secrets.EVALS_SERVICE_ACCOUNT_PASSWORD }}
-          RECAPTCHA_BYPASS_KEY: ${{ secrets.RECAPTCHA_BYPASS_KEY }}
-        run: pnpm run cleanup-eval-projects --delete
 
       - name: Report eval exit status
         if: ${{ always() && inputs.dry != true }}

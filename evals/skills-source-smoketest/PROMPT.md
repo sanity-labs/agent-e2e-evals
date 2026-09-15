@@ -1,0 +1,1 @@
+Copy the full, unchanged contents of the installed `sanity-best-practices` SKILL.md file to `observed-skill.md` in this project. Use the installed skill, not the network. Preserve the file bytes exactly. This is the entire task.
