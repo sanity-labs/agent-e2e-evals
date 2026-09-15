@@ -7,6 +7,14 @@ on:
         description: 'Comma-separated experiment names (empty = all)'
         type: string
         default: ''
+      mcp_url:
+        description: 'MCP endpoint for a deployed branch (empty = staging)'
+        type: string
+        default: ''
+      skills_branch:
+        description: 'agent-toolkit branch (empty = default branch)'
+        type: string
+        default: ''
       force:
         description: 'Bypass fingerprint cache and re-run everything'
         type: boolean
@@ -78,13 +86,15 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SANITY_AUTH_TOKEN: ${{ secrets.SANITY_AUTH_TOKEN }}
-          SANITY_MCP_URL: https://mcp.sanity.work/
+          SANITY_MCP_URL: ${{ inputs.mcp_url || 'https://mcp.sanity.work/' }}
+          SANITY_SKILLS_BRANCH: ${{ inputs.skills_branch }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           EXPERIMENTS: ${{ inputs.experiments }}
           FORCE: ${{ inputs.force }}
           DRY: ${{ inputs.dry }}
+          CUSTOM_SOURCES: ${{ inputs.mcp_url != '' || inputs.skills_branch != '' }}
         run: |
           set -uo pipefail
           ARGS=()
@@ -97,7 +107,7 @@ jobs:
             done
           fi
           ARGS+=("${EXPS_ARGS[@]}")
-          [[ "${FORCE}" == "true" ]] && ARGS+=("--force")
+          [[ "${FORCE}" == "true" || "${CUSTOM_SOURCES}" == "true" ]] && ARGS+=("--force")
           [[ "${DRY}" == "true" ]] && ARGS+=("--dry")
           set +e
           pnpm exec agent-eval run-all "${ARGS[@]}"
@@ -107,8 +117,24 @@ jobs:
           exit 0
 
       - name: Export results
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() && inputs.dry != true && inputs.mcp_url == '' && inputs.skills_branch == '' }}
         run: pnpm run export-results
+
+      - name: Record eval sources
+        if: ${{ always() && inputs.dry != true }}
+        env:
+          MCP_URL: ${{ inputs.mcp_url || 'https://mcp.sanity.work/' }}
+          SKILLS_BRANCH: ${{ inputs.skills_branch }}
+        run: |
+          mkdir -p results
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            writeFileSync("results/sources.json", JSON.stringify({
+              mcpUrl: process.env.MCP_URL,
+              skillsBranch: process.env.SKILLS_BRANCH || null,
+              evalCommit: process.env.GITHUB_SHA,
+            }, null, 2) + "\n");
+          '
 
       - name: Redact raw eval results
         if: ${{ always() && inputs.dry != true }}
@@ -126,7 +152,7 @@ jobs:
           retention-days: 30
 
       - name: Commit and push published results
-        if: ${{ always() && inputs.dry != true }}
+        if: ${{ always() && inputs.dry != true && inputs.mcp_url == '' && inputs.skills_branch == '' }}
         run: |
           set -euo pipefail
           git config user.name 'squiggler-app[bot]'

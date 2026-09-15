@@ -65,6 +65,29 @@ Use `pnpm test-eval --help` to see the options for the script.
 To run the full eval suite, use the `agent-eval` CLI directly.
 You can run evals via GitHub Actions by [triggering the workflow to run manually](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), see `.github/workflows/evals.yml` for more info.
 
+### Testing MCP and skills branches
+
+The Evals workflow accepts two optional source overrides:
+
+- `mcp_url`: the full MCP endpoint URL for an already-deployed Mellon branch. The endpoint must be reachable from the eval sandboxes and accept the staging `SANITY_AUTH_TOKEN`. Empty uses `https://mcp.sanity.work/`. This does not build or deploy Mellon.
+- `skills_branch`: the branch to install from `sanity-io/agent-toolkit`, for example `fix/groq-guidance`. Empty uses the repository's default branch.
+
+Only the corresponding MCP or skills experiments use each override. Baseline experiments are unchanged. Select experiments with the `experiments` input as usual.
+
+When either override is supplied, CI bypasses cached results and skips leaderboard export and publication. Download the raw results artifact to inspect the run; its `sources.json` records the requested endpoint, skills branch, and eval commit. A branch or endpoint can change over time, so these values do not pin the source commits.
+
+For local runs, set `SANITY_MCP_URL` and/or `SANITY_SKILLS_BRANCH`:
+
+```sh
+SANITY_MCP_URL=https://your-deployed-mcp.example.com/ \
+  pnpm exec agent-eval run-all gpt-5.5-mcp --force
+
+SANITY_SKILLS_BRANCH=fix/groq-guidance \
+  pnpm exec agent-eval run-all gpt-5.5-skills --force
+```
+
+Use a separate worktree with an empty `results/` directory for local custom-source runs, and do not export those results to the leaderboard. Keep `--force` on subsequent custom runs: the framework's cache does not account for source overrides or new commits on the same branch. Local MCP runs still use `https://mcp.sanity.io/` when `SANITY_MCP_URL` is unset; set it explicitly to the staging endpoint for staging evals.
+
 ### Browsing results
 
 Use `pnpm playground` (or `pnpm playground:watch`) to browse eval outputs in `./results` in a local web UI.
