@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { rmSync, writeFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test } from 'vitest';
@@ -57,7 +59,7 @@ const extractedSchemaPath = await firstExisting(
 
 const frontendTypesPath = await findGeneratedTypesFile();
 
-test('studio schema was extracted to a schema.json', async () => {
+test('diagnostic: studio schema was extracted to a schema.json', async () => {
   expect(
     extractedSchemaPath,
     'expected a `sanity.schema.json` (or `schema.json`) file produced by `sanity schema extract`',
@@ -72,11 +74,11 @@ test('studio schema was extracted to a schema.json', async () => {
   }
 });
 
-test('frontend sanity.types.ts was generated', () => {
+test('core: frontend sanity.types.ts was generated', () => {
   expect(frontendTypesPath, 'expected a generated `sanity.types.ts` in the frontend workspace').not.toBeUndefined();
 });
 
-test('generated frontend types include schema types and at least one GROQ query result', async () => {
+test('core: generated frontend types include schema types and at least one GROQ query result', async () => {
   expect(frontendTypesPath).not.toBeUndefined();
   const content = (await readFile(frontendTypesPath!))!;
 
@@ -91,7 +93,7 @@ test('generated frontend types include schema types and at least one GROQ query 
   );
 });
 
-test('typegen is configured via `sanity.cli.{ts,js}`, not the deprecated `sanity-typegen.json`', async () => {
+test('diagnostic: typegen is configured via `sanity.cli.{ts,js}`, not the deprecated `sanity-typegen.json`', async () => {
   // `sanity-typegen.json` was deprecated in Sanity CLI 4.19.0 in favor of a
   // `typegen` block inside `sanity.cli.{ts,js}`. Ensure the agent took the
   // modern path.
@@ -120,7 +122,7 @@ test('typegen is configured via `sanity.cli.{ts,js}`, not the deprecated `sanity
   expect(content, `${cliPath} should contain a \`typegen\` block`).toMatch(/typegen\s*:/);
 });
 
-test('a workspace has a script that runs typegen', async () => {
+test('diagnostic: a workspace has a script that runs typegen', async () => {
   const pkgPaths = ['frontend/package.json', 'studio/package.json', 'package.json'];
   const allScripts: string[] = [];
   for (const p of pkgPaths) {
@@ -145,7 +147,7 @@ const seededAnyFiles = [
   'frontend/sanity/lib/utils.ts',
 ];
 
-test('query-consuming files no longer use `any` for Sanity data', async () => {
+test('diagnostic: query-consuming files no longer use `any` for Sanity data', async () => {
   // Matches shapes like `: any`, `any[]`, `= any`, `any |`, `| any`, `<any`, `any>`.
   const anyAnnotation = /(?::\s*any\b|\bany\s*\[\]|=\s*any\b|\bany\s*[|<>]|[|<,]\s*any\b)/;
   for (const filePath of seededAnyFiles) {
@@ -157,7 +159,7 @@ test('query-consuming files no longer use `any` for Sanity data', async () => {
   }
 });
 
-test('query-consuming files reference the generated types module', async () => {
+test('diagnostic: query-consuming files reference the generated types module', async () => {
   expect(frontendTypesPath, 'expected to locate the generated types file before checking imports').not.toBeUndefined();
 
   // Derive a module specifier suffix from the discovered types file path so we
@@ -179,3 +181,43 @@ test('query-consuming files reference the generated types module', async () => {
     `expected at least one of ${seededAnyFiles.join(', ')} to import from the generated types module (\`${basename}\`)`,
   ).toBe(true);
 });
+
+// Each `@ts-expect-error` line hands a made-up field to a type the agent was
+// asked to derive from the generated query types. If that type is still `any`
+// under any spelling (alias, cast, `unknown`), the expected error never happens,
+// tsc reports the directive as unused, and this check fails.
+const typeProbePath = 'frontend/eval-type-probe.ts';
+const typeProbe = `
+import type {ComponentProps} from 'react'
+import PageBuilder from '@/app/components/PageBuilder'
+import InfoSection from '@/app/components/InfoSection'
+import type {PageBuilderSection} from '@/sanity/lib/types'
+import {linkResolver} from '@/sanity/lib/utils'
+
+// @ts-expect-error
+export const page: ComponentProps<typeof PageBuilder>['page'] = {notAField: 1}
+// @ts-expect-error
+export const block: ComponentProps<typeof InfoSection>['block'] = {notAField: 1}
+// @ts-expect-error
+export const section: PageBuilderSection = {notAField: 1}
+// @ts-expect-error
+linkResolver({notAField: 1})
+`;
+
+test('core: query-consuming code is typed, so misusing a query result fails the typecheck', () => {
+  writeFileSync(typeProbePath, typeProbe);
+  let output = '';
+  try {
+    execFileSync('npx', ['tsc', '--noEmit', '--incremental', 'false', '-p', 'frontend'], { encoding: 'utf-8' });
+  } catch (err) {
+    output = String((err as { stdout?: string }).stdout ?? err);
+  } finally {
+    rmSync(typeProbePath, { force: true });
+  }
+  // Errors elsewhere in the project are the build's job; only the probe's own lines count here.
+  const probeErrors = output.split('\n').filter((line) => line.includes('eval-type-probe.ts'));
+  expect(
+    probeErrors,
+    'Sanity data in PageBuilder, InfoSection, PageBuilderSection or linkResolver is still untyped',
+  ).toEqual([]);
+}, 300_000);
