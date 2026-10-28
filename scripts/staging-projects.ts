@@ -25,7 +25,10 @@ export async function listStagingProjects(token: string): Promise<StagingProject
   });
   if (!res.ok) throw new Error(`Sanity staging project list failed: HTTP ${res.status}`);
   const body: unknown = await res.json();
-  if (!Array.isArray(body)) throw new Error('Sanity staging project list was not an array');
+  // A list we can't diff is no baseline: stop rather than run live work unrecorded.
+  if (!Array.isArray(body) || !body.every((p) => typeof p?.id === 'string' && p.id !== '')) {
+    throw new Error('Sanity staging project list was not an array of projects with string IDs');
+  }
   return body.map(({ id, displayName, organizationId, createdAt }) => ({ id, displayName, organizationId, createdAt }));
 }
 

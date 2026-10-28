@@ -29,7 +29,10 @@ globalThis.fetch = async (url, init) => {
   // Sanity staging project list: one project before the batch, a new one and the canary after.
   if (String(url).startsWith('https://api.sanity.work/')) {
     sanityCalls++;
-    const before = [{ id: 'old1', displayName: 'Old', secret: init.headers.Authorization }];
+    if (process.env.SANITY_MODE === 'throws') throw new Error('boom ' + init.headers.Authorization);
+    if (process.env.SANITY_MODE === 'no-ids') return new Response('[{}]');
+    // A project name that echoes the token, to test that snapshots are scrubbed.
+    const before = [{ id: 'old1', displayName: 'Old ' + init.headers.Authorization }];
     return new Response(JSON.stringify(sanityCalls === 1 ? before : [...before, { id: 'new1' }, { id: 'bos8r3z6' }]));
   }
   n++;
@@ -132,6 +135,17 @@ test('with a Sanity token, lists staging projects before and after and names new
   expect(result.projectFiles[0]).toContain('old1');
   expect(result.projectFiles[1]).toContain('bos8r3z6');
   for (const text of [result.raw, ...result.projectFiles]) expect(text).not.toContain(SANITY_TOKEN);
+});
+
+test.each([
+  ['throws', /boom Bearer \[REDACTED\]/],
+  ['no-ids', /not an array of projects with string IDs/],
+])('a failed first project list (%s) stops before any attempt, without printing the token', async (mode, message) => {
+  const SANITY_TOKEN = 'sk-SANITY-FAKE-MARKER-456';
+  const result = await run('cap', [], { SANITY_AUTH_TOKEN: SANITY_TOKEN, SANITY_MODE: mode });
+  const error = 'error' in result ? (result.error ?? '') : 'ran';
+  expect(error).toMatch(message);
+  expect(error).not.toContain(SANITY_TOKEN);
 });
 
 test('without a Sanity token, no projects are listed', async () => {

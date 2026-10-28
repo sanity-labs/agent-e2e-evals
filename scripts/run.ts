@@ -102,9 +102,16 @@ const start = await keyUsage().catch((err: unknown) => {
 });
 // Live tasks get SANITY_AUTH_TOKEN and may create staging projects. List them before and after; never delete.
 const sanityToken = process.env.SANITY_AUTH_TOKEN?.trim();
-const projectsBefore = sanityToken ? await listStagingProjects(sanityToken) : null;
-if (projectsBefore)
-  writeFileSync(join(resultsDir, 'staging-projects-before.json'), `${JSON.stringify(projectsBefore, null, 2)}\n`);
+// Every file this batch writes goes through the scrubber; project names are free text.
+const writeJson = (name: string, data: unknown) =>
+  writeFileSync(join(resultsDir, name), `${scrubSecrets(JSON.stringify(data, null, 2))}\n`);
+// Scrubbed so a failed first list can't print the token on the way out.
+const projectsBefore = sanityToken
+  ? await listStagingProjects(sanityToken).catch((err: unknown) => {
+      throw new Error(errorText(err));
+    })
+  : null;
+if (projectsBefore) writeJson('staging-projects-before.json', projectsBefore);
 const manifest = {
   runId,
   gitCommit: git('rev-parse', 'HEAD'),
@@ -133,7 +140,7 @@ const manifest = {
   startedAt: new Date().toISOString(),
   endedAt: '',
 };
-const saveManifest = () => writeFileSync(join(resultsDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+const saveManifest = () => writeJson('manifest.json', manifest);
 /** Decides whether another attempt may start. Any failure to check spend stops the batch. */
 async function spendStop(attempt: Attempt): Promise<string | null> {
   if (manifest.stopped) return manifest.stopped;
@@ -228,7 +235,7 @@ try {
 if (sanityToken && projectsBefore) {
   try {
     const after = await listStagingProjects(sanityToken);
-    writeFileSync(join(resultsDir, 'staging-projects-after.json'), `${JSON.stringify(after, null, 2)}\n`);
+    writeJson('staging-projects-after.json', after);
     manifest.stagingProjectsNewlyObserved = newlyObserved(projectsBefore, after);
   } catch (err) {
     manifest.stagingProjectsError = errorText(err);
