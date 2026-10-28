@@ -8,7 +8,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { afterAll, expect, test } from 'vitest';
+import { afterAll, expect, test, vi } from 'vitest';
+
+// Each test starts a real run.ts child process, which loads the agent-eval runner (5–18s on slow machines).
+vi.setConfig({ testTimeout: 60_000 });
 
 const root = resolve(import.meta.dirname, '..');
 const dir = mkdtempSync(join(tmpdir(), 'run-test-'));
