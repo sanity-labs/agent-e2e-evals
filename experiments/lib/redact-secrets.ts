@@ -4,10 +4,12 @@ import mapObject from 'map-obj';
 // Secrets from CI configs and fnox.toml
 const SECRET_ENV_VARS = [
   'AI_GATEWAY_API_KEY',
+  'OPENROUTER_API_KEY',
   'ANTHROPIC_API_KEY',
   'OPENAI_API_KEY',
   'CURSOR_API_KEY',
   'SANITY_AUTH_TOKEN',
+  'SANITY_API_READ_TOKEN',
   'VERCEL_TOKEN',
 ];
 
@@ -16,7 +18,7 @@ const secretsRegExp =
   secrets.length > 0 ? new RegExp(secrets.map((secret) => RegExp.escape(secret)).join('|'), 'g') : undefined;
 
 /** Replaces occurrences of known secrets in a given string with [REDACTED]. */
-export function scrubSecrets(value: string): string {
+function scrubSecrets(value: string): string {
   return secretsRegExp ? value.replaceAll(secretsRegExp, '[REDACTED]') : value;
 }
 

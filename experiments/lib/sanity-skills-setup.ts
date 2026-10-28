@@ -1,8 +1,7 @@
 import type { SetupFunction } from '@vercel/agent-eval';
-import { baseSetup, nonMcpEvals, sanityEvalEnv } from './base-setup.js';
+import { baseSetup } from './base-setup.ts';
 
-export { nonMcpEvals, sanityEvalEnv };
-
+/** "Added installed guidance": installs Sanity's best-practices skill for the given agent before it starts. */
 export function createSanitySkillsSetup(agent: string): SetupFunction {
   return async (sandbox) => {
     await baseSetup(sandbox);
