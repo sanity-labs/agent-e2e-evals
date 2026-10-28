@@ -3,7 +3,7 @@
  * Runs eval attempts for one or more experiment configs, a few at a time, and
  * writes everything for this batch under results/<runId>/.
  *
- *   node scripts/run.ts --evals sanity-typegen --runs 3 --concurrency 2 --cap 50 experiments/a.ts experiments/b.ts
+ *   node scripts/run.ts --key-file ~/.openrouter-key --evals sanity-typegen --runs 3 --concurrency 2 --cap 50 experiments/a.ts
  *
  * Why not `agent-eval run`: its CLI starts every attempt at once, needs a
  * Vercel AI Gateway key for its failure classifier, and deletes non-model
@@ -23,16 +23,22 @@ const { values, positionals } = parseArgs({
     runs: { type: 'string', default: '1' },
     concurrency: { type: 'string', default: '2' },
     cap: { type: 'string', default: '2' },
+    'key-file': { type: 'string' },
   },
   allowPositionals: true,
 });
 
-const apiKey = process.env.OPENROUTER_API_KEY;
-if (!apiKey) throw new Error('OPENROUTER_API_KEY is required');
+// Read the key from a mode-0600 file so it never appears in a command line or the shell environment.
+if (!values['key-file']) throw new Error('--key-file <path to a file holding the OpenRouter key> is required');
+const apiKey = readFileSync(values['key-file'], 'utf8').trim();
+// The redaction hook reads known secrets from the environment, so give it this one.
+process.env.OPENROUTER_API_KEY = apiKey;
+/** David's line: stop and tell him once total OpenRouter spend on the key reaches $750. */
+const STOP_AND_NOTIFY_USD = 750;
 const evalNames = values.evals?.split(',') ?? [];
 if (evalNames.length === 0 || positionals.length === 0) {
   throw new Error(
-    'Usage: node scripts/run.ts --evals a,b [--runs N] [--concurrency N] [--cap USD] experiments/x.ts ...',
+    'Usage: node scripts/run.ts --key-file F --evals a,b [--runs N] [--concurrency N] [--cap USD] experiments/x.ts ...',
   );
 }
 const runs = Number(values.runs);
@@ -103,8 +109,12 @@ for (const configPath of positionals) {
         manifest.attempts.push(attempt);
         // Soft stop: attempts already running finish and their cost lands in the end total.
         const spent = (await keyUsage()) - manifest.openRouterUsageAtStart;
-        if (spent >= capUsd) {
-          attempt.skipped = `batch spend $${spent.toFixed(2)} reached cap $${capUsd}`;
+        const total = manifest.openRouterUsageAtStart + spent;
+        if (spent >= capUsd || total >= STOP_AND_NOTIFY_USD) {
+          attempt.skipped =
+            total >= STOP_AND_NOTIFY_USD
+              ? `total key spend $${total.toFixed(2)} reached David's $${STOP_AND_NOTIFY_USD} stop: tell him before running more`
+              : `batch spend $${spent.toFixed(2)} reached cap $${capUsd}`;
           saveManifest();
           return;
         }
