@@ -6,9 +6,9 @@
  *   node scripts/run.ts --key-file ~/.openrouter-key --evals sanity-typegen --runs 3 --concurrency 2 --cap 50 experiments/a.ts
  *
  * Why not `agent-eval run`: its CLI starts every attempt at once, needs a
- * Vercel AI Gateway key for its failure classifier, and deletes non-model
- * failures. This script keeps every attempt to label later, limits how many
- * run at once, and checks OpenRouter spend before each attempt starts.
+ * Vercel AI Gateway key for its failure classifier, and deletes final non-model
+ * failures. This script keeps every final result to label later, limits how
+ * many attempts run at once, and checks OpenRouter spend before each starts.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -16,40 +16,52 @@ import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createConsoleProgressHandler, loadAllFixtures, loadConfig, runExperiment } from '@vercel/agent-eval';
 import pLimit from 'p-limit';
+import { scrubSecrets } from '../experiments/lib/redact-secrets.ts';
 
 const { values, positionals } = parseArgs({
   options: {
+    'key-file': { type: 'string' },
     evals: { type: 'string' },
     runs: { type: 'string', default: '1' },
-    concurrency: { type: 'string', default: '2' },
+    concurrency: { type: 'string', default: '1' },
     cap: { type: 'string', default: '2' },
-    'key-file': { type: 'string' },
   },
   allowPositionals: true,
 });
 
-// Read the key from a mode-0600 file so it never appears in a command line or the shell environment.
-if (!values['key-file']) throw new Error('--key-file <path to a file holding the OpenRouter key> is required');
-const apiKey = readFileSync(values['key-file'], 'utf8').trim();
-// The redaction hook reads known secrets from the environment, so give it this one.
-process.env.OPENROUTER_API_KEY = apiKey;
-/** David's line: stop and tell him once total OpenRouter spend on the key reaches $750. */
-const STOP_AND_NOTIFY_USD = 750;
-const evalNames = values.evals?.split(',') ?? [];
-if (evalNames.length === 0 || positionals.length === 0) {
-  throw new Error(
-    'Usage: node scripts/run.ts --key-file F --evals a,b [--runs N] [--concurrency N] [--cap USD] experiments/x.ts ...',
-  );
-}
-const runs = Number(values.runs);
+const usage =
+  'Usage: node scripts/run.ts --key-file F --evals a,b [--runs N] [--concurrency N] [--cap USD] experiments/x.ts ...';
+const positiveInt = (name: string, raw: string) => {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`--${name} must be a positive integer. ${usage}`);
+  return n;
+};
+const evalNames = values.evals?.split(',').filter(Boolean) ?? [];
+if (!values['key-file'] || evalNames.length === 0 || positionals.length === 0) throw new Error(usage);
+const runs = positiveInt('runs', values.runs);
+const concurrency = positiveInt('concurrency', values.concurrency);
 const capUsd = Number(values.cap);
+if (!Number.isFinite(capUsd) || capUsd < 0) throw new Error(`--cap must be a non-negative number of USD. ${usage}`);
 
-/** Total spend on the OpenRouter key so far, in USD. */
-async function keyUsage(): Promise<number> {
+/** David's line: stop and tell him once this month's OpenRouter spend reaches $750. */
+const MONTHLY_STOP_USD = 750;
+
+// Read the key from a mode-0600 file so it never appears in a command line or process list.
+const apiKey = readFileSync(values['key-file'], 'utf8').trim();
+// The redaction hook and scrubSecrets read known secrets from the environment.
+process.env.OPENROUTER_API_KEY = apiKey;
+
+/** Spend on the OpenRouter key: lifetime total and this month, in USD. Throws unless both are numbers. */
+async function keyUsage(): Promise<{ total: number; month: number }> {
   const res = await fetch('https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${apiKey}` } });
-  if (!res.ok) throw new Error(`OpenRouter key check failed: ${res.status}`);
-  const { data } = (await res.json()) as { data: { usage: number } };
-  return data.usage;
+  if (!res.ok) throw new Error(`OpenRouter key check failed: HTTP ${res.status}`);
+  const body = (await res.json()) as { data?: { usage?: unknown; usage_monthly?: unknown } };
+  const total = body.data?.usage;
+  const month = body.data?.usage_monthly;
+  if (typeof total !== 'number' || !Number.isFinite(total) || typeof month !== 'number' || !Number.isFinite(month)) {
+    throw new Error('OpenRouter key check returned no usable usage figures');
+  }
+  return { total, month };
 }
 
 interface Attempt {
@@ -74,6 +86,7 @@ const resultsDir = join(root, 'results', runId);
 mkdirSync(resultsDir, { recursive: true });
 
 const { fixtures } = loadAllFixtures(join(root, 'evals'));
+const start = await keyUsage();
 const manifest = {
   runId,
   gitCommit: git('rev-parse', 'HEAD'),
@@ -82,15 +95,37 @@ const manifest = {
     .version as string,
   evals: evalNames,
   runsPerEval: runs,
+  concurrency,
   capUsd,
-  experiments: [] as Array<{ name: string; agent: string; model: unknown; timeout: number; sandbox: string }>,
+  monthlyStopUsd: MONTHLY_STOP_USD,
+  experiments: [] as Array<{ name: string; agent: string; model: string; timeout: number; sandbox: string }>,
   attempts: [] as Attempt[],
-  openRouterUsageAtStart: await keyUsage(),
-  openRouterUsageAtEnd: 0,
+  openRouterUsageAtStart: start.total,
+  openRouterUsageAtEnd: null as number | null,
+  /** Set when the batch stopped early; no further attempts were started after it. */
+  stopped: null as string | null,
   startedAt: new Date().toISOString(),
   endedAt: '',
 };
 const saveManifest = () => writeFileSync(join(resultsDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+const errorText = (err: unknown) => scrubSecrets(err instanceof Error ? err.message : String(err)).slice(0, 2000);
+
+/** Decides whether another attempt may start. Any failure to check spend stops the batch. */
+async function spendStop(): Promise<string | null> {
+  if (manifest.stopped) return manifest.stopped;
+  try {
+    const now = await keyUsage();
+    const spent = now.total - start.total;
+    if (now.month >= MONTHLY_STOP_USD) {
+      manifest.stopped = `monthly spend $${now.month.toFixed(2)} reached David's $${MONTHLY_STOP_USD} stop: tell him before running more`;
+    } else if (spent >= capUsd) {
+      manifest.stopped = `batch spend $${spent.toFixed(2)} reached the $${capUsd} cap`;
+    }
+  } catch (err) {
+    manifest.stopped = `spend check failed, so no more attempts were started: ${errorText(err)}`;
+  }
+  return manifest.stopped;
+}
 
 const jobs: Array<() => Promise<void>> = [];
 for (const configPath of positionals) {
@@ -111,14 +146,10 @@ for (const configPath of positionals) {
       jobs.push(async () => {
         const attempt: Attempt = { experiment, eval: evalName, run, invocations: [] };
         manifest.attempts.push(attempt);
-        // Soft stop: attempts already running finish and their cost lands in the end total.
-        const spent = (await keyUsage()) - manifest.openRouterUsageAtStart;
-        const total = manifest.openRouterUsageAtStart + spent;
-        if (spent >= capUsd || total >= STOP_AND_NOTIFY_USD) {
-          attempt.skipped =
-            total >= STOP_AND_NOTIFY_USD
-              ? `total key spend $${total.toFixed(2)} reached David's $${STOP_AND_NOTIFY_USD} stop: tell him before running more`
-              : `batch spend $${spent.toFixed(2)} reached cap $${capUsd}`;
+        // A soft stop: attempts already running finish, and their cost shows in the end total.
+        const stop = await spendStop();
+        if (stop) {
+          attempt.skipped = stop;
           saveManifest();
           return;
         }
@@ -132,12 +163,12 @@ for (const configPath of positionals) {
               evals: evalName,
               onRunComplete: async (context) => {
                 const runData = (await config.onRunComplete?.(context)) ?? context.runData;
-                const { status, duration, error, usage } = runData.result;
+                const { status, duration, error, usage: tokens } = runData.result;
                 attempt.invocations.push({
                   status,
                   seconds: duration,
-                  ...(usage?.costUsd !== undefined ? { costUsd: usage.costUsd } : {}),
-                  ...(error ? { error: error.slice(0, 500) } : {}),
+                  ...(tokens?.costUsd !== undefined ? { costUsd: tokens.costUsd } : {}),
+                  ...(error ? { error: errorText(error).slice(0, 500) } : {}),
                 });
                 return runData;
               },
@@ -152,7 +183,7 @@ for (const configPath of positionals) {
             },
           });
         } catch (err) {
-          attempt.error = err instanceof Error ? err.message : String(err);
+          attempt.error = errorText(err);
         }
         saveManifest();
       });
@@ -161,13 +192,19 @@ for (const configPath of positionals) {
 }
 
 saveManifest();
-const limit = pLimit(Number(values.concurrency));
+const limit = pLimit(concurrency);
 await Promise.all(jobs.map((job) => limit(job)));
 
-manifest.openRouterUsageAtEnd = await keyUsage();
+try {
+  manifest.openRouterUsageAtEnd = (await keyUsage()).total;
+} catch (err) {
+  manifest.stopped ??= `final spend check failed: ${errorText(err)}`;
+}
 manifest.endedAt = new Date().toISOString();
 saveManifest();
-const spent = manifest.openRouterUsageAtEnd - manifest.openRouterUsageAtStart;
+const spent =
+  manifest.openRouterUsageAtEnd === null ? 'unknown' : `$${(manifest.openRouterUsageAtEnd - start.total).toFixed(4)}`;
 console.log(
-  `\nBatch ${runId}: ${manifest.attempts.length} attempts, OpenRouter spend $${spent.toFixed(4)}. Results in ${resultsDir}`,
+  `\nBatch ${runId}: ${manifest.attempts.length} attempts, OpenRouter spend ${spent}.${manifest.stopped ? ` Stopped: ${manifest.stopped}` : ''}`,
 );
+console.log(`Results in ${resultsDir}`);

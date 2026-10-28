@@ -1,7 +1,6 @@
 import type { EvalRunData, RunCompleteHook } from '@vercel/agent-eval';
 import mapObject from 'map-obj';
 
-// Secrets from CI configs and fnox.toml
 const SECRET_ENV_VARS = [
   'AI_GATEWAY_API_KEY',
   'OPENROUTER_API_KEY',
@@ -13,13 +12,11 @@ const SECRET_ENV_VARS = [
   'VERCEL_TOKEN',
 ];
 
-const secrets = SECRET_ENV_VARS.map((name) => process.env[name]).filter((value): value is string => Boolean(value));
-const secretsRegExp =
-  secrets.length > 0 ? new RegExp(secrets.map((secret) => RegExp.escape(secret)).join('|'), 'g') : undefined;
-
-/** Replaces occurrences of known secrets in a given string with [REDACTED]. */
-function scrubSecrets(value: string): string {
-  return secretsRegExp ? value.replaceAll(secretsRegExp, '[REDACTED]') : value;
+/** Replaces known secrets (read from the environment at call time) with [REDACTED]. */
+export function scrubSecrets(value: string): string {
+  const secrets = SECRET_ENV_VARS.map((name) => process.env[name]).filter((v): v is string => Boolean(v));
+  if (secrets.length === 0) return value;
+  return value.replaceAll(new RegExp(secrets.map((s) => RegExp.escape(s)).join('|'), 'g'), '[REDACTED]');
 }
 
 /** @vercel/agent-eval hook to redact secrets before results are written to disk. */
@@ -29,8 +26,6 @@ export const redactSecrets: RunCompleteHook = ({ config, runData }) => {
     runData.generatedFiles = {};
     runData.deletedFiles = [];
   }
-
-  if (!secretsRegExp) return runData;
 
   return mapObject(
     runData as unknown as Record<string, unknown>,
