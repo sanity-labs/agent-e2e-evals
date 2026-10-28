@@ -18,6 +18,7 @@ import { createConsoleProgressHandler, loadAllFixtures, loadConfig, runExperimen
 import pLimit from 'p-limit';
 import { scrubSecrets } from '../experiments/lib/redact-secrets.ts';
 import { SKILLS_REF } from '../experiments/lib/sanity-skills-setup.ts';
+import { listStagingProjects, newlyObserved } from './staging-projects.ts';
 
 const { values, positionals } = parseArgs({
   options: {
@@ -99,6 +100,11 @@ const errorText = (err: unknown) => scrubSecrets(err instanceof Error ? err.mess
 const start = await keyUsage().catch((err: unknown) => {
   throw new Error(errorText(err));
 });
+// Live tasks get SANITY_AUTH_TOKEN and may create staging projects. List them before and after; never delete.
+const sanityToken = process.env.SANITY_AUTH_TOKEN?.trim();
+const projectsBefore = sanityToken ? await listStagingProjects(sanityToken) : null;
+if (projectsBefore)
+  writeFileSync(join(resultsDir, 'staging-projects-before.json'), `${JSON.stringify(projectsBefore, null, 2)}\n`);
 const manifest = {
   runId,
   gitCommit: git('rev-parse', 'HEAD'),
@@ -116,6 +122,12 @@ const manifest = {
   attempts: [] as Attempt[],
   openRouterUsageAtStart: start.total,
   openRouterUsageAtEnd: null as number | null,
+  /**
+   * Staging projects first seen during the batch (raw lists are in staging-projects-*.json).
+   * Not proof this batch created them: the token is shared. Null when no Sanity token was given.
+   */
+  stagingProjectsNewlyObserved: null as Array<{ id: string; displayName?: string; createdAt?: string }> | null,
+  stagingProjectsError: null as string | null,
   /** Set when the batch stopped early; no further attempts were started after it. */
   stopped: null as string | null,
   startedAt: new Date().toISOString(),
@@ -213,6 +225,15 @@ try {
 } catch (err) {
   manifest.stopped ??= `final spend check failed: ${errorText(err)}`;
 }
+if (sanityToken && projectsBefore) {
+  try {
+    const after = await listStagingProjects(sanityToken);
+    writeFileSync(join(resultsDir, 'staging-projects-after.json'), `${JSON.stringify(after, null, 2)}\n`);
+    manifest.stagingProjectsNewlyObserved = newlyObserved(projectsBefore, after);
+  } catch (err) {
+    manifest.stagingProjectsError = errorText(err);
+  }
+}
 manifest.endedAt = new Date().toISOString();
 saveManifest();
 const spent =
@@ -220,4 +241,9 @@ const spent =
 console.log(
   `\nBatch ${runId}: ${manifest.attempts.length} attempts, OpenRouter spend ${spent}.${manifest.stopped ? ` Stopped: ${manifest.stopped}` : ''}`,
 );
+if (manifest.stagingProjectsNewlyObserved?.length) {
+  console.log(
+    `Staging projects first seen during this batch (check, then delete by hand): ${manifest.stagingProjectsNewlyObserved.map((p) => p.id).join(', ')}`,
+  );
+}
 console.log(`Results in ${resultsDir}`);

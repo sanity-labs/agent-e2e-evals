@@ -23,9 +23,16 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
 const stub = `data:text/javascript,${encodeURIComponent(`
 let n = 0;
-globalThis.fetch = async (_url, init) => {
-  n++;
+let sanityCalls = 0;
+globalThis.fetch = async (url, init) => {
   const ok = (data) => new Response(JSON.stringify({ data }));
+  // Sanity staging project list: one project before the batch, a new one and the canary after.
+  if (String(url).startsWith('https://api.sanity.work/')) {
+    sanityCalls++;
+    const before = [{ id: 'old1', displayName: 'Old', secret: init.headers.Authorization }];
+    return new Response(JSON.stringify(sanityCalls === 1 ? before : [...before, { id: 'new1' }, { id: 'bos8r3z6' }]));
+  }
+  n++;
   if (process.env.MODE === 'throws-at-start') throw new Error('boom ' + init.headers.Authorization);
   if (n === 1) return ok({ usage: 10, usage_monthly: 10 });
   switch (process.env.MODE) {
@@ -38,19 +45,34 @@ globalThis.fetch = async (_url, init) => {
 };
 `)}`;
 
-async function run(mode: string, extraArgs: string[] = []) {
+async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
   const args = ['--import', stub, 'scripts/run.ts', '--key-file', keyFile, '--evals', 'sanity-typegen', '--runs', '2'];
   try {
     const { stdout } = await promisify(execFile)(
       'node',
       [...args, '--cap', '1', ...extraArgs, 'experiments/claude-haiku-5.5.ts'],
-      { cwd: root, env: { ...process.env, MODE: mode } },
+      { cwd: root, env: { ...process.env, SANITY_AUTH_TOKEN: '', MODE: mode, ...extraEnv } },
     );
     const resultsDir = stdout.match(/Results in (.+)/)?.[1]?.trim();
     if (!resultsDir) throw new Error(`no results dir in output:\n${stdout}`);
     const raw = readFileSync(join(resultsDir, 'manifest.json'), 'utf8');
+    const projectFiles = ['before', 'after'].map((when) => {
+      try {
+        return readFileSync(join(resultsDir, `staging-projects-${when}.json`), 'utf8');
+      } catch {
+        return null;
+      }
+    });
     rmSync(resultsDir, { recursive: true, force: true });
-    return { raw, manifest: JSON.parse(raw) as { stopped: string | null; attempts: Array<{ skipped?: string }> } };
+    return {
+      raw,
+      projectFiles,
+      manifest: JSON.parse(raw) as {
+        stopped: string | null;
+        attempts: Array<{ skipped?: string }>;
+        stagingProjectsNewlyObserved: Array<{ id: string }> | null;
+      },
+    };
   } catch (err) {
     return { error: String((err as { stderr?: string }).stderr ?? err) };
   }
@@ -99,4 +121,23 @@ test.each([
 ])('rejects invalid input %j', async (args, message) => {
   const result = await run('cap', args);
   expect('error' in result ? result.error : 'ran').toMatch(message);
+});
+
+test('with a Sanity token, lists staging projects before and after and names new ones, never the canary', async () => {
+  const SANITY_TOKEN = 'sk-SANITY-FAKE-MARKER-456';
+  const result = await run('cap', [], { SANITY_AUTH_TOKEN: SANITY_TOKEN });
+  if (!('manifest' in result) || !result.manifest)
+    throw new Error(`run failed: ${'error' in result ? result.error : ''}`);
+  expect(result.manifest.stagingProjectsNewlyObserved).toEqual([{ id: 'new1' }]);
+  expect(result.projectFiles[0]).toContain('old1');
+  expect(result.projectFiles[1]).toContain('bos8r3z6');
+  for (const text of [result.raw, ...result.projectFiles]) expect(text).not.toContain(SANITY_TOKEN);
+});
+
+test('without a Sanity token, no projects are listed', async () => {
+  const result = await run('cap');
+  if (!('manifest' in result) || !result.manifest)
+    throw new Error(`run failed: ${'error' in result ? result.error : ''}`);
+  expect(result.manifest.stagingProjectsNewlyObserved).toBeNull();
+  expect(result.projectFiles).toEqual([null, null]);
 });
