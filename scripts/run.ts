@@ -243,7 +243,7 @@ console.log(
 );
 if (manifest.stagingProjectsNewlyObserved?.length) {
   console.log(
-    `Staging projects first seen during this batch (check, then delete by hand): ${manifest.stagingProjectsNewlyObserved.map((p) => p.id).join(', ')}`,
+    `Staging projects first seen during this batch (not proof this batch created them; reconcile by hand): ${manifest.stagingProjectsNewlyObserved.map((p) => p.id).join(', ')}`,
   );
 }
 console.log(`Results in ${resultsDir}`);

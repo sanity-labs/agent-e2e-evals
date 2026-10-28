@@ -3,8 +3,8 @@
  *
  * Live tasks (the getting-started scaffold) create real staging projects, and
  * the shared robot token can't delete them. The batch never deletes anything:
- * it saves both raw lists and names the projects first seen during the batch,
- * so a person can check and delete them by hand. With a shared token and other
+ * it saves both raw lists and names the projects first seen during the batch
+ * for manual reconciliation. With a shared token and other
  * work going on, "first seen during the batch" is not proof the batch made them.
  */
 import { sanityEvalEnv } from '../experiments/lib/base-setup.ts';
@@ -29,7 +29,7 @@ export async function listStagingProjects(token: string): Promise<StagingProject
   return body.map(({ id, displayName, organizationId, createdAt }) => ({ id, displayName, organizationId, createdAt }));
 }
 
-/** Projects in `after` but not `before`, minus protected ones. Candidates for manual deletion only. */
+/** Projects in `after` but not `before`, minus protected ones. Listed for manual reconciliation; never deleted here. */
 export function newlyObserved(before: StagingProject[], after: StagingProject[]): StagingProject[] {
   const seen = new Set(before.map((p) => p.id));
   return after.filter((p) => !seen.has(p.id) && !PROTECTED_PROJECTS.includes(p.id));
