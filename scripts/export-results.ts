@@ -96,7 +96,7 @@ export function exportRun(runDir: string) {
     experiments: unknown[];
     attempts: Attempt[];
     stopped: string | null;
-    openRouterUsageAtStart: number;
+    openRouterUsageAtStart: number | null;
     openRouterUsageAtEnd: number | null;
   }>(join(runDir, 'manifest.json'));
   if (!manifest) throw new Error(`No manifest.json in ${runDir}`);
@@ -135,7 +135,9 @@ export function exportRun(runDir: string) {
     // Valid only when every attempt that ran has a known outcome, as in next-evals' release gate.
     valid: attempts.every((a) => a.outcome !== 'unknown'),
     openRouterUsageDeltaUsd:
-      manifest.openRouterUsageAtEnd === null ? null : manifest.openRouterUsageAtEnd - manifest.openRouterUsageAtStart,
+      manifest.openRouterUsageAtEnd === null || manifest.openRouterUsageAtStart === null
+        ? null
+        : manifest.openRouterUsageAtEnd - manifest.openRouterUsageAtStart,
     rows,
     attempts,
   };

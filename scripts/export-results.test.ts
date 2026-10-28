@@ -71,3 +71,18 @@ test('wilson interval matches a known value', () => {
   expect(lo).toBeCloseTo(0.3195, 3);
   expect(hi).toBeCloseTo(0.8067, 3);
 });
+
+test('a batch whose first spend check failed reports unknown spend, not all-time usage', () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'export-'));
+  writeFileSync(
+    join(runDir, 'manifest.json'),
+    JSON.stringify({
+      runId: 'r2',
+      attempts: [{ experiment: 'm', eval: 'demo', run: 1, invocations: [], skipped: 'spend check failed' }],
+      stopped: 'spend check failed',
+      openRouterUsageAtStart: null,
+      openRouterUsageAtEnd: 42,
+    }),
+  );
+  expect(exportRun(runDir).openRouterUsageDeltaUsd).toBeNull();
+});
