@@ -1,377 +1,153 @@
 #!/usr/bin/env node
 /**
- * Export eval results into the committed `published/` directory.
+ * Summarise one batch written by scripts/run.ts.
  *
- * Reads all experiments in `results/`, merges across timestamps (newest-first)
- * to get the full eval set per experiment, and writes a single summary JSON:
+ *   node scripts/export-results.ts results/<runId>
  *
- *   published/<datetime>/summary.json
- */
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
-import { z } from 'zod';
-import { EVAL_DISPLAY_NAMES } from './common.ts';
-import {
-  loadExperimentMetadata,
-  type LoadedExperimentMetadata,
-  type ThinkingLevel,
-  type VariantType,
-} from './lib/experiment-metadata.ts';
-
-interface SummaryJson {
-  totalRuns: number;
-  passedRuns: number;
-  passRate?: string;
-  meanDuration: number;
-  fingerprint?: string;
-  valid?: boolean;
-}
-
-interface RunStats {
-  score: number;
-  duration: number | null;
-}
-
-interface EvalDetail {
-  average: RunStats;
-  runs: RunStats[];
-}
-
-interface VariantResult {
-  experimentName: string;
-  thinkingLevel?: ThinkingLevel;
-  iterations: number;
-  average: RunStats;
-  evals: Record<string, EvalDetail>;
-}
-
-interface ModelResult {
-  name: string;
-  displayName: string;
-  agentHarness: string;
-  variants: Record<VariantType, VariantResult>;
-}
-
-interface ExportedSummary {
-  version: 1;
-  timestamp: string;
-  evals: Array<{ name: string; displayName: string; url: string }>;
-  models: ModelResult[];
-}
-
-const ROOT_DIR = join(import.meta.dirname, '..');
-const EXPERIMENTS_DIR = join(ROOT_DIR, 'experiments');
-const RESULTS_DIR = join(ROOT_DIR, 'results');
-const PUBLISHED_DIR = join(ROOT_DIR, 'published');
-
-const HARNESS_NAMES: Record<string, string> = {
-  'claude-code': 'Claude Code',
-  codex: 'Codex',
-  cursor: 'Cursor',
-  gemini: 'Gemini CLI',
-  'vercel-ai-gateway/claude-code': 'Claude Code',
-  'vercel-ai-gateway/codex': 'Codex',
-  'vercel-ai-gateway/opencode': 'OpenCode',
-};
-
-const INTERNAL_EVALS = new Set(['mcp-smoketest']);
-
-const EVAL_BASE_URL = 'https://github.com/sanity-labs/agent-e2e-evals/tree/main/evals';
-
-function isTimestampDir(name: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}T/.test(name);
-}
-
-async function listSubdirs(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  return entries.filter((e) => e.isDirectory()).map((e) => e.name);
-}
-
-function getAgentHarness(metadata: LoadedExperimentMetadata): string {
-  return HARNESS_NAMES[metadata.agent] ?? metadata.agent;
-}
-
-/**
- * Parse vitest text output to extract passed/total test counts.
- * Handles all vitest summary line formats:
- *   "Tests  7 passed (7)"
- *   "Tests  1 failed | 6 passed (7)"
- *   "Tests  6 failed (6)"
- * Returns the score as a ratio (0-1), or null if unparseable.
- */
-function parseVitestScore(output: string): number | null {
-  const summaryMatch = output.match(/^\s*Tests\s+(.+)\((\d+)\)/m);
-  if (!summaryMatch?.[1] || !summaryMatch[2]) return null;
-  const total = Number(summaryMatch[2]);
-  if (total === 0) return null;
-
-  const passedMatch = summaryMatch[1].match(/(\d+)\s+passed/);
-  const passed = passedMatch ? Number(passedMatch[1]) : 0;
-
-  return passed / total;
-}
-
-const runResultSchema = z.looseObject({ duration: z.number().optional() });
-
-interface EvalRunsData {
-  iterations: number;
-  average: RunStats;
-  runs: RunStats[];
-}
-
-/**
- * Collect per-run details for a single eval directory.
+ * Writes results/<runId>/report.json and prints a table. Every executed test in
+ * an EVAL.ts is a core check, so a saved status of "passed" means the configured
+ * scripts and every core check passed.
  *
- * For each `run-N/` subdirectory we read:
- *   - `outputs/eval.txt` -> per-run assertion score via `parseVitestScore`
- *   - `result.json`      -> per-run `duration`
- *
- * A run that produced no parseable eval output (it timed out or crashed before
- * the assertions ran) counts as 0 — a timeout means the agent didn't finish in
- * time, which is a failure, not a run to silently drop. Falls back to the
- * binary pass/fail from summary.json only when there are no run directories.
+ * Infrastructure failures are never inferred. To mark one, write the evidence in
+ * results/<runId>/labels.json: { "<experiment>/<eval>/<run>": { "outcome": "infra", "evidence": "..." } }
  */
-async function collectEvalRuns(evalSrcDir: string, summary: SummaryJson): Promise<EvalRunsData> {
-  const runDirs = (await listSubdirs(evalSrcDir)).filter((e) => /^run-\d+$/.test(e)).sort();
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
-  if (runDirs.length === 0) {
-    return {
-      iterations: summary.totalRuns,
-      average: {
-        score: summary.passedRuns > 0 ? 1 : 0,
-        duration: summary.meanDuration,
-      },
-      runs: [],
-    };
-  }
+type Outcome = 'pass' | 'agent' | 'infra' | 'unknown';
 
-  const runs: RunStats[] = [];
-  for (const runDir of runDirs) {
-    let score = 0;
-    try {
-      const output = await readFile(join(evalSrcDir, runDir, 'outputs', 'eval.txt'), 'utf-8');
-      score = parseVitestScore(output) ?? 0;
-    } catch {
-      // No eval output for this run -> failed/timed-out run, scored as 0.
-    }
-
-    let duration: number | null = null;
-    try {
-      const result = runResultSchema.safeParse(
-        JSON.parse(await readFile(join(evalSrcDir, runDir, 'result.json'), 'utf-8')),
-      );
-      duration = result.success ? (result.data.duration ?? null) : null;
-    } catch {
-      // No result.json -> unknown duration.
-    }
-
-    runs.push({ score, duration });
-  }
-
-  const score = runs.reduce((sum, r) => sum + r.score, 0) / runs.length;
-  const durations = runs.map((r) => r.duration).filter((d) => d != null);
-  const duration =
-    durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : summary.meanDuration;
-
-  return {
-    iterations: runs.length,
-    average: { score, duration },
-    runs,
-  };
+interface Attempt {
+  experiment: string;
+  eval: string;
+  run: number;
+  invocations: Array<{ status: string; seconds: number; costUsd?: number; error?: string }>;
+  outputDir?: string;
+  skipped?: string;
+  error?: string;
 }
 
-/**
- * For a given experiment, find all timestamp dirs sorted newest-first
- * and collect the latest valid result for each eval (merging across timestamps).
- */
-async function collectExperimentEvals(
-  expDir: string,
-): Promise<{ evals: Record<string, EvalDetail>; iterations: number }> {
-  const timestampDirs = (await listSubdirs(expDir)).filter(isTimestampDir).sort().reverse();
-
-  const evals: Record<string, EvalDetail> = {};
-  const seenEvals = new Set<string>();
-  let iterations = 0;
-
-  for (const tsDir of timestampDirs) {
-    const tsPath = join(expDir, tsDir);
-
-    const evalDirs = await listSubdirs(tsPath);
-    for (const evalDir of evalDirs) {
-      if (seenEvals.has(evalDir) || INTERNAL_EVALS.has(evalDir)) continue;
-      const evalSrcDir = join(tsPath, evalDir);
-
-      const summaryPath = join(evalSrcDir, 'summary.json');
-      const summary: SummaryJson = JSON.parse(await readFile(summaryPath, 'utf-8'));
-      if (summary.valid === false) continue;
-
-      const runsData = await collectEvalRuns(evalSrcDir, summary);
-      iterations = Math.max(iterations, runsData.iterations);
-
-      evals[evalDir] = {
-        average: runsData.average,
-        runs: runsData.runs,
-      };
-      seenEvals.add(evalDir);
-    }
-  }
-
-  return { evals, iterations };
+interface Label {
+  outcome: Outcome;
+  evidence: string;
 }
 
-function buildVariant(
-  experimentName: string,
-  metadata: LoadedExperimentMetadata,
-  { evals, iterations }: { evals: Record<string, EvalDetail>; iterations: number },
-): VariantResult {
-  const { thinkingLevel } = metadata.experimentMetadata;
-  const evalList = Object.values(evals);
-  const score = evalList.length > 0 ? evalList.reduce((sum, e) => sum + e.average.score, 0) / evalList.length : 0;
-  const durations = evalList.map((e) => e.average.duration).filter((d) => d != null);
-  const duration = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
-  return {
-    experimentName,
-    ...(thinkingLevel ? { thinkingLevel } : {}),
-    iterations,
-    average: { score, duration },
-    evals,
-  };
-}
+const readJson = <T>(p: string): T | undefined =>
+  existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as T) : undefined;
 
-function getRequiredVariant(
-  variantsByType: Map<VariantType, VariantResult>,
-  modelName: string,
-  variantType: VariantType,
-): VariantResult {
-  const variant = variantsByType.get(variantType);
-  if (!variant) {
-    throw new Error(`Missing valid results for required experiment variant: ${modelName} ${variantType}`);
-  }
-  return variant;
-}
-
-/**
- * Get the latest timestamp directory name for an experiment.
- */
-async function getLatestTimestamp(expDir: string): Promise<string | undefined> {
-  const timestamps = (await listSubdirs(expDir)).filter(isTimestampDir);
-  timestamps.sort();
-  return timestamps.at(-1);
-}
-
-// Discover all experiment directories with results
-const allExpDirs = (await listSubdirs(RESULTS_DIR)).filter((d) => !d.startsWith('_temp_'));
-const expWithTimestamps: Array<{ name: string; latestTs: string; metadata: LoadedExperimentMetadata }> = [];
-for (const dir of allExpDirs) {
-  const ts = await getLatestTimestamp(join(RESULTS_DIR, dir));
-  if (ts) {
-    expWithTimestamps.push({
-      name: dir,
-      latestTs: ts,
-      metadata: await loadExperimentMetadata(EXPERIMENTS_DIR, dir),
-    });
-  }
-}
-
-const experiments = expWithTimestamps.map((e) => e.name).sort();
-const metadataByExperiment = new Map(expWithTimestamps.map((e) => [e.name, e.metadata]));
-
-console.log(`Exporting ${experiments.length} experiment(s): ${experiments.join(', ') || '(none)'}`);
-
-// Collect evals for every experiment (baseline + variants)
-const variantsByModel = new Map<string, Map<VariantType, VariantResult>>();
-const modelMetadata = new Map<string, LoadedExperimentMetadata>();
-for (const experiment of experiments) {
-  const metadata = metadataByExperiment.get(experiment);
-  if (!metadata) {
-    throw new Error(`Missing loaded metadata for experiment: ${experiment}`);
-  }
-
-  const collected = await collectExperimentEvals(join(RESULTS_DIR, experiment));
-  if (Object.keys(collected.evals).length === 0) {
-    console.warn(`No valid results for: ${experiment}`);
-    continue;
-  }
-
-  const { modelName, variant, displayName } = metadata.experimentMetadata;
-  const existingMetadata = modelMetadata.get(modelName);
-  if (existingMetadata && existingMetadata.experimentMetadata.displayName !== displayName) {
-    throw new Error(`Conflicting displayName metadata for model: ${modelName}`);
-  }
-  if (!existingMetadata || variant === 'baseline') {
-    modelMetadata.set(modelName, metadata);
-  }
-
-  let variants = variantsByModel.get(modelName);
-  if (!variants) {
-    variants = new Map();
-    variantsByModel.set(modelName, variants);
-  }
-  if (variants.has(variant)) {
-    throw new Error(`Duplicate ${variant} result metadata for model: ${modelName}`);
-  }
-  variants.set(variant, buildVariant(experiment, metadata, collected));
-}
-
-// Group model experiments with their baseline/mcp/skills counterparts.
-const models: ModelResult[] = [];
-for (const modelName of variantsByModel.keys().toArray().sort()) {
-  const variants = variantsByModel.get(modelName);
-  const metadata = modelMetadata.get(modelName);
-  if (!variants || !metadata) {
-    throw new Error(`Missing metadata for model: ${modelName}`);
-  }
-
-  models.push({
-    name: modelName,
-    displayName: metadata.experimentMetadata.displayName,
-    agentHarness: getAgentHarness(metadata),
-    variants: {
-      baseline: getRequiredVariant(variants, modelName, 'baseline'),
-      mcp: getRequiredVariant(variants, modelName, 'mcp'),
-      skills: getRequiredVariant(variants, modelName, 'skills'),
-    },
+export function gradeAttempt(attempt: Attempt, label?: Label) {
+  const runDir = attempt.outputDir ? join(attempt.outputDir, attempt.eval, 'run-1') : undefined;
+  const result = runDir
+    ? readJson<{ status: string; error?: string; o11y?: { usage?: { totalTokens?: number } } }>(
+        join(runDir, 'result.json'),
+      )
+    : undefined;
+  const testsRan = !!runDir && existsSync(join(runDir, 'outputs/eval.txt'));
+  const outcome = (o: Outcome, reason: string) => ({
+    experiment: attempt.experiment,
+    eval: attempt.eval,
+    run: attempt.run,
+    outcome: o,
+    reason,
+    invocations: attempt.invocations.length,
+    seconds: attempt.invocations.reduce((t, i) => t + i.seconds, 0),
+    tokens: result?.o11y?.usage?.totalTokens ?? null,
+    costUsd: attempt.invocations.reduce((t, i) => t + (i.costUsd ?? 0), 0),
   });
+
+  if (label) return outcome(label.outcome, `labelled: ${label.evidence}`);
+  if (!result) return outcome('unknown', attempt.error ? `runner error: ${attempt.error}` : 'no result.json');
+  if (result.status === 'passed') return outcome('pass', 'typecheck and core checks passed');
+  if (result.error?.includes('timed out')) return outcome('agent', result.error);
+  if (testsRan) return outcome('agent', 'typecheck or a core check failed; see outputs/');
+  return outcome('unknown', result.error ? `no test output: ${result.error}` : 'no test output');
 }
 
-// Use the global latest timestamp as the export directory name
-const latestTs =
-  expWithTimestamps
-    .map((e) => e.latestTs)
-    .sort()
-    .at(-1) ?? new Date().toISOString().replace(/:/g, '-');
+/** Wilson score interval, 95%. */
+export function wilson(successes: number, n: number): [number, number] {
+  if (n === 0) return [0, 1];
+  const z = 1.96;
+  const p = successes / n;
+  const centre = (p + (z * z) / (2 * n)) / (1 + (z * z) / n);
+  const half = (z / (1 + (z * z) / n)) * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return [Math.max(0, centre - half), Math.min(1, centre + half)];
+}
 
-const exportDir = join(PUBLISHED_DIR, latestTs);
-await mkdir(exportDir, { recursive: true });
+export function exportRun(runDir: string) {
+  const manifest = readJson<{
+    runId: string;
+    gitCommit: string;
+    gitDirty: boolean;
+    agentEvalVersion: string;
+    experiments: unknown[];
+    attempts: Attempt[];
+    stopped: string | null;
+    openRouterUsageAtStart: number;
+    openRouterUsageAtEnd: number | null;
+  }>(join(runDir, 'manifest.json'));
+  if (!manifest) throw new Error(`No manifest.json in ${runDir}`);
+  const labels = readJson<Record<string, Label>>(join(runDir, 'labels.json')) ?? {};
 
-const evalNamesSet = new Set(
-  models.flatMap((model) => Object.values(model.variants).flatMap((variant) => Object.keys(variant.evals))),
-);
-const evals = evalNamesSet
-  .values()
-  .map((name) => ({ name, displayName: EVAL_DISPLAY_NAMES[name] ?? name, url: `${EVAL_BASE_URL}/${name}` }))
-  .toArray()
-  .sort((a, b) => a.name.localeCompare(b.name));
+  const ran = manifest.attempts.filter((a) => !a.skipped);
+  const attempts = ran.map((a) => gradeAttempt(a, labels[`${a.experiment}/${a.eval}/${a.run}`]));
+  const rows = [...Map.groupBy(attempts, (a) => `${a.experiment} × ${a.eval}`)].map(([group, list]) => {
+    const count = (o: Outcome) => list.filter((a) => a.outcome === o).length;
+    const pass = count('pass');
+    const graded = pass + count('agent');
+    const mean = (k: 'seconds' | 'costUsd') => list.reduce((t, a) => t + a[k], 0) / list.length;
+    return {
+      group,
+      pass,
+      graded,
+      wilson95: wilson(pass, graded),
+      agent: count('agent'),
+      infra: count('infra'),
+      unknown: count('unknown'),
+      meanSeconds: mean('seconds'),
+      meanCostUsd: mean('costUsd'),
+      meanTokens: list.reduce((t, a) => t + (a.tokens ?? 0), 0) / list.length,
+      retriedAttempts: list.filter((a) => a.invocations > 1).length,
+    };
+  });
 
-const summary: ExportedSummary = {
-  version: 1,
-  // agent-eval converts timestamps to have hyphens instead of colons to store on disk, this reverses that so we can parse the timestamp
-  timestamp: new Date(latestTs.replace(/^(.+T\d{2})-(\d{2})-(\d{2}\..+)$/, '$1:$2:$3')).toISOString(),
-  evals,
-  models,
-};
+  const report = {
+    runId: manifest.runId,
+    gitCommit: manifest.gitCommit,
+    gitDirty: manifest.gitDirty,
+    agentEvalVersion: manifest.agentEvalVersion,
+    experiments: manifest.experiments,
+    stopped: manifest.stopped,
+    skipped: manifest.attempts.length - ran.length,
+    // Valid only when every attempt that ran has a known outcome, as in next-evals' release gate.
+    valid: attempts.every((a) => a.outcome !== 'unknown'),
+    openRouterSpendUsd:
+      manifest.openRouterUsageAtEnd === null ? null : manifest.openRouterUsageAtEnd - manifest.openRouterUsageAtStart,
+    rows,
+    attempts,
+  };
+  writeFileSync(join(runDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+  return report;
+}
 
-const outputPath = join(exportDir, 'summary.json');
-await writeFile(outputPath, `${JSON.stringify(summary, null, 2)}\n`);
-
-// Print stats
-const totalVariants = models.length * 3;
-const avgScore =
-  models.length > 0 ? models.reduce((sum, m) => sum + m.variants.baseline.average.score, 0) / models.length : 0;
-
-console.log('-'.repeat(60));
-console.log(`Exported to: ${relative(ROOT_DIR, outputPath)}`);
-console.log(
-  `Models: ${models.length} | Variants: ${totalVariants} | Evals: ${evals.length} | Avg baseline score: ${(avgScore * 100).toFixed(1)}%`,
-);
-console.log('-'.repeat(60));
+if (import.meta.main) {
+  const runDir = process.argv[2];
+  if (!runDir) throw new Error('Usage: node scripts/export-results.ts results/<runId>');
+  const report = exportRun(resolve(runDir));
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+  console.table(
+    report.rows.map((r) => ({
+      'experiment × eval': r.group,
+      'pass@1 (95% CI)': r.graded ? `${r.pass}/${r.graded} (${pct(r.wilson95[0])}–${pct(r.wilson95[1])})` : 'n/a',
+      agent: r.agent,
+      infra: r.infra,
+      unknown: r.unknown,
+      's/attempt': Math.round(r.meanSeconds),
+      'tokens/attempt': Math.round(r.meanTokens),
+      '$/attempt': r.meanCostUsd.toFixed(3),
+      'silently retried': r.retriedAttempts,
+    })),
+  );
+  const spend = report.openRouterSpendUsd === null ? 'unknown' : `$${report.openRouterSpendUsd.toFixed(2)}`;
+  console.log(
+    `OpenRouter spend ${spend}. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
+  );
+}
