@@ -17,7 +17,6 @@
   "devDependencies": {
     "@types/node": "^24.12.2",
     "@vercel/agent-eval": "2.6.0",
-    "jiti": "^2.7.0",
     "knip": "^6.15.0",
     "map-obj": "^6.0.0",
     "oxfmt": "^0.45.0",

@@ -14,9 +14,6 @@ importers:
       '@vercel/agent-eval':
         specifier: 2.6.0
         version: 2.6.0
-      jiti:
-        specifier: ^2.7.0
-        version: 2.7.0
       knip:
         specifier: ^6.15.0
         version: 6.15.0
