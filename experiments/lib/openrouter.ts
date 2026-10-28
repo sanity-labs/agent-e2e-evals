@@ -23,6 +23,8 @@ export function openRouterExperiment(options: { model: string; skills?: boolean 
     scripts: ['build'],
     runs: 3,
     earlyExit: false,
+    // Grade in a fresh sandbox that gets only the agent's file changes.
+    verifier: 'separate',
     timeout: 1800,
     sandbox: 'docker',
     agentEnv: sanityEvalEnv,

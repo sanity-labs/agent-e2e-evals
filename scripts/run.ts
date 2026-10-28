@@ -56,8 +56,12 @@ interface Attempt {
   experiment: string;
   eval: string;
   run: number;
-  /** Sandboxes started. Above 1 means the runner silently retried a fast (<5s) failure. */
-  sandboxStarts: number;
+  /**
+   * Every agent invocation behind this attempt. The runner silently re-runs an
+   * attempt that fails in under 5s (up to 5 times) and saves only the last one;
+   * onRunComplete fires for each, so earlier ones are kept here (already redacted).
+   */
+  invocations: Array<{ status: string; seconds: number; costUsd?: number; error?: string }>;
   outputDir?: string;
   skipped?: string;
   error?: string;
@@ -105,7 +109,7 @@ for (const configPath of positionals) {
     if (!fixture) throw new Error(`Unknown eval: ${evalName}`);
     for (let run = 1; run <= runs; run++) {
       jobs.push(async () => {
-        const attempt: Attempt = { experiment, eval: evalName, run, sandboxStarts: 0 };
+        const attempt: Attempt = { experiment, eval: evalName, run, invocations: [] };
         manifest.attempts.push(attempt);
         // Soft stop: attempts already running finish and their cost lands in the end total.
         const spent = (await keyUsage()) - manifest.openRouterUsageAtStart;
@@ -126,10 +130,16 @@ for (const configPath of positionals) {
               model,
               runs: 1,
               evals: evalName,
-              // Setup runs once per sandbox, so this counts the runner's hidden retries.
-              setup: async (sandbox) => {
-                attempt.sandboxStarts++;
-                await config.setup?.(sandbox);
+              onRunComplete: async (context) => {
+                const runData = (await config.onRunComplete?.(context)) ?? context.runData;
+                const { status, duration, error, usage } = runData.result;
+                attempt.invocations.push({
+                  status,
+                  seconds: duration,
+                  ...(usage?.costUsd !== undefined ? { costUsd: usage.costUsd } : {}),
+                  ...(error ? { error: error.slice(0, 500) } : {}),
+                });
+                return runData;
               },
             },
             fixtures: [fixture],
