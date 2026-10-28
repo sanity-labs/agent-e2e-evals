@@ -23,6 +23,7 @@ let n = 0;
 globalThis.fetch = async (_url, init) => {
   n++;
   const ok = (data) => new Response(JSON.stringify({ data }));
+  if (process.env.MODE === 'throws-at-start') throw new Error('boom ' + init.headers.Authorization);
   if (n === 1) return ok({ usage: 10, usage_monthly: 10 });
   switch (process.env.MODE) {
     case 'down': return new Response('down', { status: 503 });
@@ -79,6 +80,13 @@ test("David's $750 monthly stop stops new attempts", async () => {
 
 test('the key never reaches the manifest, even inside an error', async () => {
   expectStoppedBeforeAnyAttempt(await run('throws'), /spend check failed.*boom Bearer \[REDACTED\]/);
+});
+
+test('the key never reaches stderr when the first spend check fails', async () => {
+  const result = await run('throws-at-start');
+  const error = 'error' in result ? (result.error ?? '') : 'ran';
+  expect(error).toContain('boom Bearer [REDACTED]');
+  expect(error).not.toContain(FAKE_KEY);
 });
 
 test.each([

@@ -92,7 +92,12 @@ const resultsDir = join(root, 'results', runId);
 mkdirSync(resultsDir, { recursive: true });
 
 const { fixtures } = loadAllFixtures(join(root, 'evals'));
-const start = await keyUsage();
+const errorText = (err: unknown) => scrubSecrets(err instanceof Error ? err.message : String(err)).slice(0, 2000);
+
+// Scrubbed so a failed first check can't print the key on the way out.
+const start = await keyUsage().catch((err: unknown) => {
+  throw new Error(errorText(err));
+});
 const manifest = {
   runId,
   gitCommit: git('rev-parse', 'HEAD'),
@@ -114,8 +119,6 @@ const manifest = {
   endedAt: '',
 };
 const saveManifest = () => writeFileSync(join(resultsDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-const errorText = (err: unknown) => scrubSecrets(err instanceof Error ? err.message : String(err)).slice(0, 2000);
-
 /** Decides whether another attempt may start. Any failure to check spend stops the batch. */
 async function spendStop(attempt: Attempt): Promise<string | null> {
   if (manifest.stopped) return manifest.stopped;
