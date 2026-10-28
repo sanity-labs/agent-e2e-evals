@@ -1,13 +1,18 @@
 import type { SetupFunction } from '@vercel/agent-eval';
 import { baseSetup } from './base-setup.ts';
 
+/**
+ * The agent-toolkit commit every skills cell installs, so all cells see the same guidance.
+ * SANITY_SKILLS_BRANCH overrides it (a branch, tag or commit); run.ts records the value used.
+ */
+export const SKILLS_REF = process.env.SANITY_SKILLS_BRANCH?.trim() || '3ed3a143f8d3413faa7790ac0b2274fd3a8a6320';
+
 /** "Added installed guidance": installs Sanity's best-practices skill for the given agent before it starts. */
 export function createSanitySkillsSetup(agent: string): SetupFunction {
   return async (sandbox) => {
     await baseSetup(sandbox);
 
-    const branch = process.env.SANITY_SKILLS_BRANCH?.trim();
-    const source = branch ? `sanity-io/agent-toolkit#${encodeURIComponent(branch)}` : 'sanity-io/agent-toolkit';
+    const source = `sanity-io/agent-toolkit#${encodeURIComponent(SKILLS_REF)}`;
 
     const result = await sandbox.runCommand('npx', [
       '-y',

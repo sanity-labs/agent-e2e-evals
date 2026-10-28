@@ -17,6 +17,7 @@ import { parseArgs } from 'node:util';
 import { createConsoleProgressHandler, loadAllFixtures, loadConfig, runExperiment } from '@vercel/agent-eval';
 import pLimit from 'p-limit';
 import { scrubSecrets } from '../experiments/lib/redact-secrets.ts';
+import { SKILLS_REF } from '../experiments/lib/sanity-skills-setup.ts';
 
 const { values, positionals } = parseArgs({
   options: {
@@ -102,6 +103,8 @@ const manifest = {
   runId,
   gitCommit: git('rev-parse', 'HEAD'),
   gitDirty: git('status', '--porcelain') !== '',
+  /** agent-toolkit ref the skills cells install; unused by no-skills cells. */
+  skillsRef: SKILLS_REF,
   agentEvalVersion: JSON.parse(readFileSync(join(root, 'node_modules/@vercel/agent-eval/package.json'), 'utf8'))
     .version as string,
   evals: evalNames,
