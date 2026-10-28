@@ -75,9 +75,9 @@ interface Attempt {
    */
   invocations: Array<{ status: string; seconds: number; costUsd?: number; error?: string }>;
   /**
-   * Lifetime key usage just before this attempt started. With --concurrency 1 the
-   * difference to the next attempt's figure (or openRouterUsageAtEnd) is this
-   * attempt's exact OpenRouter cost, retries included.
+   * Lifetime key usage just before this attempt started. The difference to the
+   * next figure is an observed key-usage delta, not an exact price: other use of
+   * the key and provider accounting delay can shift it.
    */
   openRouterUsageBefore?: number;
   outputDir?: string;
