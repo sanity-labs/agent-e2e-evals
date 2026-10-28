@@ -34,12 +34,24 @@ interface Label {
 const readJson = <T>(p: string): T | undefined =>
   existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as T) : undefined;
 
+/** The CLI's own total, else input + output when both are reported; null when neither is known. */
+function totalTokens(usage?: { totalTokens?: number; inputTokens?: number; outputTokens?: number }) {
+  if (usage?.totalTokens !== undefined) return usage.totalTokens;
+  if (usage?.inputTokens !== undefined && usage.outputTokens !== undefined)
+    return usage.inputTokens + usage.outputTokens;
+  return null;
+}
+
+const meanOf = (xs: number[]) => (xs.length ? xs.reduce((t, x) => t + x, 0) / xs.length : null);
+
 export function gradeAttempt(attempt: Attempt, label?: Label) {
   const runDir = attempt.outputDir ? join(attempt.outputDir, attempt.eval, 'run-1') : undefined;
   const result = runDir
-    ? readJson<{ status: string; error?: string; o11y?: { usage?: { totalTokens?: number } } }>(
-        join(runDir, 'result.json'),
-      )
+    ? readJson<{
+        status: string;
+        error?: string;
+        usage?: { totalTokens?: number; inputTokens?: number; outputTokens?: number };
+      }>(join(runDir, 'result.json'))
     : undefined;
   const testsRan = !!runDir && existsSync(join(runDir, 'outputs/eval.txt'));
   const outcome = (o: Outcome, reason: string) => ({
@@ -50,11 +62,14 @@ export function gradeAttempt(attempt: Attempt, label?: Label) {
     reason,
     invocations: attempt.invocations.length,
     seconds: attempt.invocations.reduce((t, i) => t + i.seconds, 0),
-    tokens: result?.o11y?.usage?.totalTokens ?? null,
-    costUsd: attempt.invocations.reduce((t, i) => t + (i.costUsd ?? 0), 0),
+    tokens: totalTokens(result?.usage),
+    openCodeEstUsd: attempt.invocations.reduce((t, i) => t + (i.costUsd ?? 0), 0),
   });
 
   if (label) return outcome(label.outcome, `labelled: ${label.evidence}`);
+  // The runner silently re-ran a fast failure, so pass@1 would count a second try; a person decides.
+  if (attempt.invocations.length > 1)
+    return outcome('unknown', `retried ${attempt.invocations.length - 1}x by the runner; label it in labels.json`);
   if (!result) return outcome('unknown', attempt.error ? `runner error: ${attempt.error}` : 'no result.json');
   if (result.status === 'passed') return outcome('pass', 'typecheck and core checks passed');
   if (result.error?.includes('timed out')) return outcome('agent', result.error);
@@ -93,7 +108,7 @@ export function exportRun(runDir: string) {
     const count = (o: Outcome) => list.filter((a) => a.outcome === o).length;
     const pass = count('pass');
     const graded = pass + count('agent');
-    const mean = (k: 'seconds' | 'costUsd') => list.reduce((t, a) => t + a[k], 0) / list.length;
+    const mean = (k: 'seconds' | 'openCodeEstUsd') => list.reduce((t, a) => t + a[k], 0) / list.length;
     return {
       group,
       pass,
@@ -103,8 +118,8 @@ export function exportRun(runDir: string) {
       infra: count('infra'),
       unknown: count('unknown'),
       meanSeconds: mean('seconds'),
-      meanCostUsd: mean('costUsd'),
-      meanTokens: list.reduce((t, a) => t + (a.tokens ?? 0), 0) / list.length,
+      meanOpenCodeEstUsd: mean('openCodeEstUsd'),
+      meanTokens: meanOf(list.flatMap((a) => (a.tokens === null ? [] : [a.tokens]))),
       retriedAttempts: list.filter((a) => a.invocations > 1).length,
     };
   });
@@ -119,7 +134,7 @@ export function exportRun(runDir: string) {
     skipped: manifest.attempts.length - ran.length,
     // Valid only when every attempt that ran has a known outcome, as in next-evals' release gate.
     valid: attempts.every((a) => a.outcome !== 'unknown'),
-    openRouterSpendUsd:
+    openRouterUsageDeltaUsd:
       manifest.openRouterUsageAtEnd === null ? null : manifest.openRouterUsageAtEnd - manifest.openRouterUsageAtStart,
     rows,
     attempts,
@@ -141,13 +156,13 @@ if (import.meta.main) {
       infra: r.infra,
       unknown: r.unknown,
       's/attempt': Math.round(r.meanSeconds),
-      'tokens/attempt': Math.round(r.meanTokens),
-      '$/attempt': r.meanCostUsd.toFixed(3),
+      'tokens/attempt': r.meanTokens === null ? 'n/a' : Math.round(r.meanTokens),
+      'OpenCode est. $/attempt': r.meanOpenCodeEstUsd.toFixed(3),
       'silently retried': r.retriedAttempts,
     })),
   );
-  const spend = report.openRouterSpendUsd === null ? 'unknown' : `$${report.openRouterSpendUsd.toFixed(2)}`;
+  const spend = report.openRouterUsageDeltaUsd === null ? 'unknown' : `$${report.openRouterUsageDeltaUsd.toFixed(2)}`;
   console.log(
-    `OpenRouter spend ${spend}. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
+    `OpenRouter key usage delta (observed) ${spend}. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
   );
 }
