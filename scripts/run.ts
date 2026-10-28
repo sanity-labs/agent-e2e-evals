@@ -12,7 +12,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createConsoleProgressHandler, loadAllFixtures, loadConfig, runExperiment } from '@vercel/agent-eval';
 import pLimit from 'p-limit';
@@ -188,7 +188,7 @@ for (const configPath of positionals) {
             resultsDir: join(resultsDir, experiment, `${evalName}-run-${run}`),
             experimentName: '.',
             onProgress: (event) => {
-              if (event.type === 'experiment:saved') attempt.outputDir = event.outputDir;
+              if (event.type === 'experiment:saved') attempt.outputDir = relative(resultsDir, event.outputDir);
               progress(event);
             },
           });

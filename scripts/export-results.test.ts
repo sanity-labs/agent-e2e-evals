@@ -86,3 +86,27 @@ test('a batch whose first spend check failed reports unknown spend, not all-time
   );
   expect(exportRun(runDir).openRouterUsageDeltaUsd).toBeNull();
 });
+
+test('a copied batch still finds its attempts, for relative and older absolute paths', () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'export-'));
+  for (const run of [1, 2]) {
+    mkdirSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/outputs`), { recursive: true });
+    writeFileSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/result.json`), JSON.stringify({ status: 'passed' }));
+    writeFileSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/outputs/eval.txt`), 'Tests ...');
+  }
+  const invocations = [{ status: 'passed', seconds: 1 }];
+  writeFileSync(
+    join(runDir, 'manifest.json'),
+    JSON.stringify({
+      runId: 'r3',
+      attempts: [
+        { experiment: 'm', eval: 'demo', run: 1, invocations, outputDir: 'm/demo-run-1/ts' },
+        { experiment: 'm', eval: 'demo', run: 2, invocations, outputDir: '/home/other/results/r3/m/demo-run-2/ts' },
+      ],
+      stopped: null,
+      openRouterUsageAtStart: 0,
+      openRouterUsageAtEnd: 0,
+    }),
+  );
+  expect(exportRun(runDir).attempts.map((a) => a.outcome)).toEqual(['pass', 'pass']);
+});

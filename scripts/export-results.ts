@@ -12,7 +12,7 @@
  * results/<runId>/labels.json: { "<experiment>/<eval>/<run>": { "outcome": "infra", "evidence": "..." } }
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 type Outcome = 'pass' | 'agent' | 'infra' | 'unknown';
 
@@ -44,8 +44,21 @@ function totalTokens(usage?: { totalTokens?: number; inputTokens?: number; outpu
 
 const meanOf = (xs: number[]) => (xs.length ? xs.reduce((t, x) => t + x, 0) / xs.length : null);
 
-export function gradeAttempt(attempt: Attempt, label?: Label) {
-  const runDir = attempt.outputDir ? join(attempt.outputDir, attempt.eval, 'run-1') : undefined;
+/**
+ * Attempt folders are stored relative to the batch folder, so a copied batch still exports.
+ * Older manifests stored absolute paths on the machine that ran them; for those, keep the part
+ * after the batch's own runId folder.
+ */
+function attemptDir(batchDir: string, runId: string, outputDir: string) {
+  if (!isAbsolute(outputDir)) return resolve(batchDir, outputDir);
+  const i = outputDir.indexOf(`/${runId}/`);
+  return i === -1 ? outputDir : resolve(batchDir, outputDir.slice(i + runId.length + 2));
+}
+
+export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', runId = '') {
+  const runDir = attempt.outputDir
+    ? join(attemptDir(batchDir, runId, attempt.outputDir), attempt.eval, 'run-1')
+    : undefined;
   const result = runDir
     ? readJson<{
         status: string;
@@ -103,7 +116,9 @@ export function exportRun(runDir: string) {
   const labels = readJson<Record<string, Label>>(join(runDir, 'labels.json')) ?? {};
 
   const ran = manifest.attempts.filter((a) => !a.skipped);
-  const attempts = ran.map((a) => gradeAttempt(a, labels[`${a.experiment}/${a.eval}/${a.run}`]));
+  const attempts = ran.map((a) =>
+    gradeAttempt(a, labels[`${a.experiment}/${a.eval}/${a.run}`], runDir, manifest.runId),
+  );
   const rows = [...Map.groupBy(attempts, (a) => `${a.experiment} × ${a.eval}`)].map(([group, list]) => {
     const count = (o: Outcome) => list.filter((a) => a.outcome === o).length;
     const pass = count('pass');
