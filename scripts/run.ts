@@ -74,6 +74,12 @@ interface Attempt {
    * onRunComplete fires for each, so earlier ones are kept here (already redacted).
    */
   invocations: Array<{ status: string; seconds: number; costUsd?: number; error?: string }>;
+  /**
+   * Lifetime key usage just before this attempt started. With --concurrency 1 the
+   * difference to the next attempt's figure (or openRouterUsageAtEnd) is this
+   * attempt's exact OpenRouter cost, retries included.
+   */
+  openRouterUsageBefore?: number;
   outputDir?: string;
   skipped?: string;
   error?: string;
@@ -111,10 +117,11 @@ const saveManifest = () => writeFileSync(join(resultsDir, 'manifest.json'), `${J
 const errorText = (err: unknown) => scrubSecrets(err instanceof Error ? err.message : String(err)).slice(0, 2000);
 
 /** Decides whether another attempt may start. Any failure to check spend stops the batch. */
-async function spendStop(): Promise<string | null> {
+async function spendStop(attempt: Attempt): Promise<string | null> {
   if (manifest.stopped) return manifest.stopped;
   try {
     const now = await keyUsage();
+    attempt.openRouterUsageBefore = now.total;
     const spent = now.total - start.total;
     if (now.month >= MONTHLY_STOP_USD) {
       manifest.stopped = `monthly spend $${now.month.toFixed(2)} reached David's $${MONTHLY_STOP_USD} stop: tell him before running more`;
@@ -147,7 +154,7 @@ for (const configPath of positionals) {
         const attempt: Attempt = { experiment, eval: evalName, run, invocations: [] };
         manifest.attempts.push(attempt);
         // A soft stop: attempts already running finish, and their cost shows in the end total.
-        const stop = await spendStop();
+        const stop = await spendStop(attempt);
         if (stop) {
           attempt.skipped = stop;
           saveManifest();
