@@ -17,6 +17,6 @@ The runner applies the blueprint's own filter and projection. The function's wri
 **Limits:**
 - Nothing is deployed. Real event delivery and token permissions are not tested.
 - The DNS stub routes every hostname to loopback but doesn't isolate the network, so calibrate inside `unshare -rn`.
-- The grader imports one internal path from `@sanity/runtime-cli` 17.0.0 (pinned by the lockfile). Rerun calibration when the lockfile changes.
+- The grader imports one internal path from `@sanity/runtime-cli`. The verifier ignores the lockfile and npm-installs from the caret range in package.json, so rerun calibration under that npm install whenever the resolved version changes.
 
 Calibration and design: `research/function-handler-grader-v2.md` and the calibration write-up.

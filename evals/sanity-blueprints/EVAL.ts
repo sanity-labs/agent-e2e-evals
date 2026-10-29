@@ -16,7 +16,7 @@ import { evaluate, parse } from 'groq-js';
 import { beforeAll, expect, test } from 'vitest';
 
 const FIXTURE = { projectId: 'xg4e0byh', dataset: 'production' };
-// Pinned internal path in @sanity/runtime-cli 17.0.0 (lockfile); a broken import is UNKNOWN.
+// Internal path in @sanity/runtime-cli, resolved from package.json's caret range by the verifier's npm install (no lockfile); a broken import is UNKNOWN.
 const LOADER = 'node_modules/@sanity/runtime-cli/dist/actions/blueprints/blueprint.js';
 const PORT = 4790;
 const STUB = join(tmpdir(), 'eval-dns-stub.mjs');
