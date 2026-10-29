@@ -65,7 +65,8 @@ const SKILL_READ = /\.agents\/skills\/|skills\/[a-z0-9-]+\/(SKILL\.md|references
 
 /**
  * What the saved transcript shows: tokens summed over OpenCode's step_finish events (the result's
- * usage is null for OpenCode; OpenCode's total includes cache reads) and whether any tool call used a skill. Null when there is no transcript.
+ * usage is null for OpenCode; OpenCode's total includes cache reads). After a runner retry only the
+ * final invocation's transcript is saved, so tokens cover that invocation only. and whether any tool call used a skill. Null when there is no transcript.
  */
 function readTranscript(runDir: string) {
   const path = join(runDir, 'transcript-raw.jsonl');
@@ -91,7 +92,10 @@ function readTranscript(runDir: string) {
   return { tokens, skillUsed };
 }
 
-/** Files the agent changed, counted only from a saved workspace diff (copyFiles); null otherwise. */
+/**
+ * Files retained in a saved project/ folder (copyFiles), after redactSecrets filtering; null when none
+ * was saved. A count of captured files, not of every file the agent changed.
+ */
 function countFiles(dir: string): number {
   return readdirSync(dir, { withFileTypes: true }).reduce(
     (t, d) => t + (d.isDirectory() ? countFiles(join(dir, d.name)) : 1),
@@ -124,6 +128,8 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
   const testsRan = !!runDir && existsSync(join(runDir, 'outputs/eval.txt'));
   const transcript = runDir ? readTranscript(runDir) : { tokens: null, skillUsed: null };
   const projectDir = runDir && join(runDir, 'project');
+  // run.ts saves an attempt when it starts; it has a runner result only once an invocation is recorded.
+  const finished = attempt.invocations.length > 0;
   const outcome = (o: Outcome, reason: string) => ({
     experiment: attempt.experiment,
     eval: attempt.eval,
@@ -131,14 +137,16 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
     outcome: o,
     reason,
     invocations: attempt.invocations.length,
-    seconds: attempt.invocations.reduce((t, i) => t + i.seconds, 0),
+    // Null, not zero, for an attempt saved at start that never got a runner result.
+    seconds: finished ? attempt.invocations.reduce((t, i) => t + i.seconds, 0) : null,
     tokens: totalTokens(result?.usage) ?? transcript.tokens,
-    openCodeEstUsd: attempt.invocations.reduce((t, i) => t + (i.costUsd ?? 0), 0),
+    openCodeEstUsd: finished ? attempt.invocations.reduce((t, i) => t + (i.costUsd ?? 0), 0) : null,
     skillUsed: transcript.skillUsed,
-    filesChanged: projectDir && existsSync(projectDir) ? countFiles(projectDir) : null,
+    filesCaptured: projectDir && existsSync(projectDir) ? countFiles(projectDir) : null,
   });
 
   if (label) return outcome(label.outcome, `labelled: ${label.evidence}`);
+  if (!finished) return outcome('unknown', 'started but no runner result saved (interrupted or still running)');
   // The runner silently re-ran a fast failure, so pass@1 would count a second try; a person decides.
   if (attempt.invocations.length > 1)
     return outcome('unknown', `retried ${attempt.invocations.length - 1}x by the runner; label it in labels.json`);
@@ -196,15 +204,13 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
     const count = (o: Outcome) => list.filter((a) => a.outcome === o).length;
     const pass = count('pass');
     const graded = pass + count('agent');
-    const mean = (k: 'seconds' | 'openCodeEstUsd') =>
-      list.length ? list.reduce((t, a) => t + a[k], 0) / list.length : 0;
     const stat = (xs: number[]) => ({ median: medianOf(xs), total: xs.length ? sumOf(xs) : null, known: xs.length });
     const experiment = group.slice(0, group.indexOf(' × '));
     return {
       group,
       planned: planned.get(group) ?? null,
       saved: saved.get(group)?.length ?? 0,
-      completed: list.length,
+      completed: list.filter((a) => a.invocations > 0).length,
       pass,
       graded,
       wilson95: wilson(pass, graded),
@@ -213,16 +219,16 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
       // Kept out of the pass@1 denominator; each with the evidence its label gives.
       infraFailures: list.filter((a) => a.outcome === 'infra').map((a) => ({ run: a.run, reason: a.reason })),
       unknown: count('unknown'),
-      meanSeconds: mean('seconds'),
-      meanOpenCodeEstUsd: mean('openCodeEstUsd'),
+      meanSeconds: meanOf(known(list.map((a) => a.seconds))),
+      meanOpenCodeEstUsd: meanOf(known(list.map((a) => a.openCodeEstUsd))),
       meanTokens: meanOf(known(list.map((a) => a.tokens))),
-      costUsd: stat(list.map((a) => a.openCodeEstUsd)),
+      costUsd: stat(known(list.map((a) => a.openCodeEstUsd))),
       tokens: stat(known(list.map((a) => a.tokens))),
-      seconds: stat(list.map((a) => a.seconds)),
+      seconds: stat(known(list.map((a) => a.seconds))),
       // Experiments named *-skills install the Sanity skills (experiments/lib/openrouter.ts).
       skillsInstalled: experiment.endsWith('-skills'),
       skillUsed: list.filter((a) => a.skillUsed).length,
-      filesChanged: stat(known(list.map((a) => a.filesChanged))),
+      filesCaptured: stat(known(list.map((a) => a.filesCaptured))),
       retriedAttempts: list.filter((a) => a.invocations > 1).length,
     };
   });
@@ -265,10 +271,10 @@ if (import.meta.main) {
       infra: r.infra,
       unknown: r.unknown,
       '$ median / total': `${fmt(r.costUsd.median, 3)} / ${fmt(r.costUsd.total, 2)}`,
-      'tokens incl. cache median / total': `${fmt(r.tokens.median)} / ${fmt(r.tokens.total)}`,
+      'final-transcript tokens incl. cache median / total': `${fmt(r.tokens.median)} / ${fmt(r.tokens.total)}`,
       's median / total': `${fmt(r.seconds.median)} / ${fmt(r.seconds.total)}`,
       'skill used / installed': r.skillsInstalled ? `${r.skillUsed}/${r.completed}` : `${r.skillUsed} (not installed)`,
-      'files changed median': fmt(r.filesChanged.median),
+      'captured files median': fmt(r.filesCaptured.median),
       'silently retried': r.retriedAttempts,
     })),
   );

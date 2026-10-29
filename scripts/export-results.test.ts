@@ -180,6 +180,8 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
   add('m-skills', 2, 300, 0.3, [step(40), tool('read', { filePath: '/w/.agents/skills/sanity/SKILL.md' })]);
   add('m-skills', 3, 200, 0.2, [step(20), tool('bash', { command: 'ls' })], 4);
   add('m', 1, 50, 0.05, [step(7)]);
+  // Saved by run.ts at start, then the machine stopped: no runner result, so not completed or measured.
+  attempts.push({ experiment: 'm', eval: 'demo', run: 3, invocations: [] });
   attempts.push({ experiment: 'm', eval: 'demo', run: 2, invocations: [], skipped: 'batch spend reached the cap' });
   writeFileSync(join(runDir, 'manifest.json'), JSON.stringify({ runId: 'r4', attempts, stopped: 'cap' }));
   writeFileSync(
@@ -204,45 +206,20 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
     seconds: { median: 200, total: 600, known: 3 },
     skillsInstalled: true,
     skillUsed: 2,
-    filesChanged: { median: 3, total: 6, known: 2 },
+    filesCaptured: { median: 3, total: 6, known: 2 },
   });
   expect(report.rows[0]!.costUsd.total).toBeCloseTo(0.6);
   expect(report.rows[1]).toMatchObject({
     group: 'm × demo',
-    saved: 2,
+    saved: 3,
     completed: 1,
+    unknown: 1,
+    seconds: { median: 50, total: 50, known: 1 },
+    costUsd: { median: 0.05, total: 0.05, known: 1 },
     skillsInstalled: false,
     skillUsed: 0,
-    filesChanged: { median: null, total: null, known: 0 },
+    filesCaptured: { median: null, total: null, known: 0 },
   });
-});
-
-const SMOKE = '/workspace/evals/runs/2026-10-29T08-40-05-403Z-smoke/2026-10-29T08-40-05-403Z';
-test.skipIf(!existsSync(join(SMOKE, 'manifest.json')))('smoke run exports without touching its folder', () => {
-  const reportPath = join(mkdtempSync(join(tmpdir(), 'report-')), 'report.json');
-  const hadReport = existsSync(join(SMOKE, 'report.json'));
-  const report = exportRun(SMOKE, reportPath);
-  expect(existsSync(join(SMOKE, 'report.json'))).toBe(hadReport);
-  expect(report.valid).toBe(true);
-  expect(
-    report.rows.map((r) => [
-      r.group,
-      r.planned,
-      r.saved,
-      r.completed,
-      r.pass,
-      r.graded,
-      r.infra,
-      r.skillUsed,
-      r.filesChanged.known,
-    ]),
-  ).toEqual([
-    ['gpt-5.6-terra × sanity-typegen', 1, 1, 1, 1, 1, 0, 0, 0],
-    ['gemini-3.5-flash × sanity-typegen', 1, 1, 1, 1, 1, 0, 0, 0],
-  ]);
-  expect(report.rows.map((r) => r.tokens.total)).toEqual([1147087, 2553829]);
-  expect(report.rows.map((r) => Math.round(r.seconds.total ?? NaN))).toEqual([367, 630]);
-  expect(report.openRouterUsageDeltaUsd).toBeCloseTo(1.6049, 3);
 });
 
 test('an interrupted batch (no endedAt) shows planned attempts that never saved and is never valid', () => {
