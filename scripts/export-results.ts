@@ -66,7 +66,7 @@ const SKILL_READ = /\.agents\/skills\/|skills\/[a-z0-9-]+\/(SKILL\.md|references
 /**
  * What the saved transcript shows: tokens summed over OpenCode's step_finish events (the result's
  * usage is null for OpenCode; OpenCode's total includes cache reads). After a runner retry only the
- * final invocation's transcript is saved, so tokens cover that invocation only. and whether any tool call used a skill. Null when there is no transcript.
+ * final invocation's transcript is saved, so tokens cover that invocation only. Also reports whether any tool call used a skill. Null when there is no transcript.
  */
 function readTranscript(runDir: string) {
   const path = join(runDir, 'transcript-raw.jsonl');
@@ -140,7 +140,11 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
     // Null, not zero, for an attempt saved at start that never got a runner result.
     seconds: finished ? attempt.invocations.reduce((t, i) => t + i.seconds, 0) : null,
     tokens: totalTokens(result?.usage) ?? transcript.tokens,
-    openCodeEstUsd: finished ? attempt.invocations.reduce((t, i) => t + (i.costUsd ?? 0), 0) : null,
+    // OpenCode omits cost when a step has no price; a missing or partial sum stays unknown, a reported 0 stays 0.
+    openCodeEstUsd:
+      finished && attempt.invocations.every((i) => i.costUsd !== undefined)
+        ? attempt.invocations.reduce((t, i) => t + i.costUsd!, 0)
+        : null,
     skillUsed: transcript.skillUsed,
     filesCaptured: projectDir && existsSync(projectDir) ? countFiles(projectDir) : null,
   });
@@ -191,8 +195,8 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
   const attempts = ran.map((a) =>
     gradeAttempt(a, labels[`${a.experiment}/${a.eval}/${a.run}`], runDir, manifest.runId),
   );
-  // Planned comes from the batch's own settings: run.ts saves an attempt only once it has a result,
-  // so an attempt cut off by a stopped machine is missing from attempts but still planned.
+  // Planned comes from the batch's own settings: a manifest written by an older runner, or cut off
+  // before an attempt started, can be missing attempts that were still planned.
   const planned = new Map<string, number>();
   for (const e of manifest.experiments ?? [])
     for (const ev of manifest.evals ?? []) planned.set(`${e.name} × ${ev}`, manifest.runsPerEval ?? 0);

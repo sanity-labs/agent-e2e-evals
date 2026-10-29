@@ -163,7 +163,15 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
   const attempts: object[] = [];
   const step = (total: number) => JSON.stringify({ type: 'step_finish', part: { tokens: { total } } });
   const tool = (tool: string, input: object) => JSON.stringify({ type: 'tool_use', part: { tool, state: { input } } });
-  const add = (experiment: string, run: number, seconds: number, costUsd: number, transcript: string[], files = 0) => {
+  const add = (
+    experiment: string,
+    run: number,
+    seconds: number,
+    costUsd: number | undefined,
+    transcript: string[],
+    files = 0,
+    invocations: object[] = [{ status: 'x', seconds, ...(costUsd === undefined ? {} : { costUsd }) }],
+  ) => {
     const outputDir = `${experiment}/demo-run-${run}/ts`;
     const dir = join(runDir, outputDir, 'demo/run-1');
     mkdirSync(join(dir, 'outputs'), { recursive: true });
@@ -174,12 +182,18 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
       mkdirSync(join(dir, 'project/app'), { recursive: true });
       writeFileSync(join(dir, `project/app/f${f}.ts`), '');
     }
-    attempts.push({ experiment, eval: 'demo', run, invocations: [{ status: 'x', seconds, costUsd }], outputDir });
+    attempts.push({ experiment, eval: 'demo', run, invocations, outputDir });
   };
   add('m-skills', 1, 100, 0.1, [step(10), step(5), tool('skill', { name: 'sanity' })], 2);
   add('m-skills', 2, 300, 0.3, [step(40), tool('read', { filePath: '/w/.agents/skills/sanity/SKILL.md' })]);
   add('m-skills', 3, 200, 0.2, [step(20), tool('bash', { command: 'ls' })], 4);
   add('m', 1, 50, 0.05, [step(7)]);
+  add('m', 4, 60, undefined, [step(1)]); // no price reported: cost unknown, not $0
+  add('m', 5, 0, undefined, [step(1)], 0, [
+    { status: 'failed', seconds: 10, costUsd: 0.1 },
+    { status: 'passed', seconds: 20 },
+  ]); // retry with one unpriced invocation: unknown, not a partial $0.10
+  add('m', 6, 5, 0, [step(1)]); // a reported $0 stays $0
   // Saved by run.ts at start, then the machine stopped: no runner result, so not completed or measured.
   attempts.push({ experiment: 'm', eval: 'demo', run: 3, invocations: [] });
   attempts.push({ experiment: 'm', eval: 'demo', run: 2, invocations: [], skipped: 'batch spend reached the cap' });
@@ -211,11 +225,11 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
   expect(report.rows[0]!.costUsd.total).toBeCloseTo(0.6);
   expect(report.rows[1]).toMatchObject({
     group: 'm × demo',
-    saved: 3,
-    completed: 1,
-    unknown: 1,
-    seconds: { median: 50, total: 50, known: 1 },
-    costUsd: { median: 0.05, total: 0.05, known: 1 },
+    saved: 6,
+    completed: 4,
+    unknown: 2,
+    seconds: { median: 40, total: 145, known: 4 },
+    costUsd: { median: 0.025, total: 0.05, known: 2 },
     skillsInstalled: false,
     skillUsed: 0,
     filesCaptured: { median: null, total: null, known: 0 },
