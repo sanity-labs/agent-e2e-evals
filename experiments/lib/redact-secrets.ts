@@ -21,16 +21,18 @@ export function scrubSecrets(value: string): string {
 }
 
 /** @vercel/agent-eval hook to redact secrets before results are written to disk. */
-export const redactSecrets: RunCompleteHook = ({ config, runData }) => {
+export const redactSecrets: RunCompleteHook = ({ config, runData, fixture }) => {
   // If copyFiles isn't needed, reduce RAM usage by stripping file contents from the results
   if (config.copyFiles === 'none') {
     runData.generatedFiles = {};
     runData.deletedFiles = [];
   } else {
-    // Only the starter saves files (scripts/run.ts). Keep its app/ changes and drop env files
-    // outright: their bytes are Buffers, which the string scrubber below never reads.
+    // Only the starter and the Function task save files (scripts/run.ts): the starter keeps its app/
+    // changes, the Function task all its changed files. Env files are dropped outright: their bytes
+    // are Buffers, which the string scrubber below never reads.
     // Artifact hygiene only, not a guarantee that saved source holds no secret.
-    const keep = (p: string) => p.startsWith('app/') && !basename(p).startsWith('.env');
+    const scope = fixture.name === 'sanity-nextjs-starter' ? 'app/' : '';
+    const keep = (p: string) => p.startsWith(scope) && !basename(p).startsWith('.env');
     runData.generatedFiles = Object.fromEntries(Object.entries(runData.generatedFiles ?? {}).filter(([p]) => keep(p)));
     runData.deletedFiles = (runData.deletedFiles ?? []).filter(keep);
   }
