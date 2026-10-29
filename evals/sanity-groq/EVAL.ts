@@ -21,6 +21,15 @@ const stripComments = (code: string) =>
     .createPrinter({ removeComments: true })
     .printFile(ts.createSourceFile('route.tsx', code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX));
 
+// The local name the route gives `sanityFetch` from the live module (`sanityFetch` or `sanityFetch as x`).
+function liveFetchName(code: string): string | undefined {
+  const named = code.match(/import\s*\{([^}]*)\}\s*from\s*['"](?:@\/|(?:\.\.?\/)+)sanity\/lib\/live['"]/)?.[1];
+  const m = named?.match(/\bsanityFetch\b(?:\s+as\s+([A-Za-z_$][\w$]*))?/);
+  return m ? (m[1] ?? 'sanityFetch') : undefined;
+}
+const callsName = (code: string, name: string | undefined) =>
+  name !== undefined && new RegExp(`(?<![\\w$.])${name.split('$').join('[$]')}\\s*\\(`).test(code);
+
 async function readFile(filePath: string): Promise<string | undefined> {
   try {
     return await fs.readFile(filePath, 'utf-8');
@@ -230,11 +239,12 @@ test('Post detail route uses `sanityFetch` (not raw `client.fetch`)', async () =
   // Every other page in the template fetches via `sanityFetch` from
   // `@/sanity/lib/live`. Using the bare client bypasses Live Content / Draft
   // Mode and breaks Visual Editing.
+  const name = liveFetchName(content);
   expect(
-    content,
+    name,
     'expected the route to import `sanityFetch` from `@/sanity/lib/live` (so Live Content + Draft Mode work)',
-  ).toMatch(/import\s*\{[^}]*\bsanityFetch\b[^}]*\}\s*from\s*['"](?:@\/|(?:\.\.?\/)+)sanity\/lib\/live['"]/);
-  expect(content, 'expected the route to call `sanityFetch(...)`').toMatch(/\bsanityFetch\s*\(/);
+  ).not.toBeUndefined();
+  expect(callsName(content, name), `expected the route to call \`${name}(...)\``).toBe(true);
 });
 
 test('Post detail route imports `postQuery` and the slugs query', async () => {
@@ -267,7 +277,7 @@ test('Post detail route exports `generateStaticParams` configured with `perspect
   // live/conditions/react-server), and `draftMode()` isn't available in generateStaticParams.
   // Our build is only tsc, so nothing else catches it. A plain client fetch with
   // `perspective: 'published'` is an equivalent fix (the client has stega off by default).
-  const usesLiveFetch = /\bsanityFetch\s*\(/.test(fn);
+  const usesLiveFetch = callsName(fn, liveFetchName(content));
   // Without `perspective: 'published'`, draft documents leak into the static
   // params; without `stega: false`, every prerendered URL contains stega tags.
   expect(
