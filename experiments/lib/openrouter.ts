@@ -12,13 +12,23 @@ import { createSanitySkillsSetup } from './sanity-skills-setup.ts';
  * and point OpenCode's built-in `openrouter` provider at that variable, so no
  * adapter fork is needed. The key is still the run's `apiKey`, so the runner's
  * own redaction covers it.
+ *
+ * The adapter also writes the literal key into opencode.json's `vercel`
+ * provider, which agents read during runs (29 Oct audit). Overriding that field
+ * with the env placeholder keeps the literal key out of the file. The key is
+ * still in the agent's environment, so use a capped, per-batch key.
  */
+export const KEY_PLACEHOLDER = '{env:AI_GATEWAY_API_KEY}';
+
 export function openRouterExperiment(options: { model: string; skills?: boolean }): ExperimentConfig {
   return {
     agent: 'vercel-ai-gateway/opencode',
     model: `openrouter/${options.model}`,
     agentOptions: {
-      extraProviders: { openrouter: { options: { apiKey: '{env:AI_GATEWAY_API_KEY}' } } },
+      extraProviders: {
+        openrouter: { options: { apiKey: KEY_PLACEHOLDER } },
+        vercel: { options: { apiKey: KEY_PLACEHOLDER } },
+      },
     },
     scripts: ['build'],
     runs: 3,
