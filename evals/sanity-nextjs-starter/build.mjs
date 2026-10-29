@@ -1,8 +1,8 @@
 // Diagnostic build for the scaffolded app, run by the grader as `npm run build`.
 // It installs the app's dependencies, runs Next.js in compile-only mode, then the
-// project's TypeScript check. It does not prerender pages, so it needs no Sanity
-// project, env vars or token, and it says nothing about whether the app reaches
-// its Sanity project. Supported layouts: a Next.js app in ./app, or a workspace
+// project's TypeScript check. It does not prerender pages. The calibration reconstructions
+// built this way with no Sanity credentials, but app config loaded at compile time may still
+// read env vars. It says nothing about whether the app reaches its Sanity project. Supported layouts: a Next.js app in ./app, or a workspace
 // root in ./app whose workspace has Next.js (the clean template).
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
