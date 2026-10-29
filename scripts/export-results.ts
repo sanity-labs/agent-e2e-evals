@@ -31,6 +31,13 @@ interface Label {
   evidence: string;
 }
 
+/**
+ * Evals whose graders are structural diagnostics only: a green result shows the SDK pieces exist,
+ * not that the task works, so the outcome stays unknown until a person labels it
+ * (research/presentation-live-contract.md).
+ */
+export const LABEL_ONLY_EVALS = new Set(['sanity-presentation', 'sanity-live-content']);
+
 const readJson = <T>(p: string): T | undefined =>
   existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as T) : undefined;
 
@@ -83,6 +90,8 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
   // The runner silently re-ran a fast failure, so pass@1 would count a second try; a person decides.
   if (attempt.invocations.length > 1)
     return outcome('unknown', `retried ${attempt.invocations.length - 1}x by the runner; label it in labels.json`);
+  if (LABEL_ONLY_EVALS.has(attempt.eval))
+    return outcome('unknown', `structural checks ${result?.status ?? 'missing'}; outcome needs a manual label`);
   if (!result) return outcome('unknown', attempt.error ? `runner error: ${attempt.error}` : 'no result.json');
   if (result.status === 'passed') return outcome('pass', 'typecheck and core checks passed');
   if (result.error?.includes('timed out')) return outcome('agent', result.error);

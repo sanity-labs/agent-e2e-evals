@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { exportRun, wilson } from './export-results.ts';
+import { exportRun, gradeAttempt, wilson } from './export-results.ts';
 
 test('classifies attempts from the saved status and never guesses infra', () => {
   const runDir = mkdtempSync(join(tmpdir(), 'export-'));
@@ -109,4 +109,20 @@ test('a copied batch still finds its attempts, for relative and older absolute p
     }),
   );
   expect(exportRun(runDir).attempts.map((a) => a.outcome)).toEqual(['pass', 'pass']);
+});
+
+test('structural-only evals stay unknown unless a person labels them', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'export-'));
+  mkdirSync(join(dir, 'sanity-live-content/run-1/outputs'), { recursive: true });
+  writeFileSync(join(dir, 'sanity-live-content/run-1/result.json'), JSON.stringify({ status: 'passed' }));
+  writeFileSync(join(dir, 'sanity-live-content/run-1/outputs/eval.txt'), 'Tests ...');
+  const attempt = {
+    experiment: 'm',
+    eval: 'sanity-live-content',
+    run: 1,
+    invocations: [{ status: 'passed', seconds: 1 }],
+    outputDir: dir,
+  };
+  expect(gradeAttempt(attempt)).toMatchObject({ outcome: 'unknown', reason: expect.stringContaining('manual label') });
+  expect(gradeAttempt(attempt, { outcome: 'pass', evidence: 'reviewed: posts render live' }).outcome).toBe('pass');
 });
