@@ -33,11 +33,16 @@ interface Label {
 }
 
 /**
- * Evals whose graders are structural diagnostics only: a green result shows the SDK pieces exist,
- * not that the task works, so the outcome stays unknown until a person labels it
- * (research/presentation-live-contract.md).
+ * Evals whose outcome stays unknown until a person labels it: presentation and live content have
+ * structural diagnostics only (research/presentation-live-contract.md); the starter build and the
+ * blueprints runtime observations are diagnostics a reviewer reads (research/function-handler-grader-v2.md).
  */
-const LABEL_ONLY_EVALS = new Set(['sanity-presentation', 'sanity-live-content', 'sanity-nextjs-starter']);
+const LABEL_ONLY_EVALS = new Set([
+  'sanity-presentation',
+  'sanity-live-content',
+  'sanity-nextjs-starter',
+  'sanity-blueprints',
+]);
 
 const readJson = <T>(p: string): T | undefined =>
   existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as T) : undefined;
