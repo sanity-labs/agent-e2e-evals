@@ -167,7 +167,10 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
     gitCommit: string;
     gitDirty: boolean;
     agentEvalVersion: string;
-    experiments: unknown[];
+    experiments: Array<{ name: string }>;
+    evals?: string[];
+    runsPerEval?: number;
+    endedAt?: string;
     attempts: Attempt[];
     stopped: string | null;
     openRouterUsageAtStart: number | null;
@@ -180,17 +183,27 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
   const attempts = ran.map((a) =>
     gradeAttempt(a, labels[`${a.experiment}/${a.eval}/${a.run}`], runDir, manifest.runId),
   );
-  const scheduled = Map.groupBy(manifest.attempts, (a) => `${a.experiment} × ${a.eval}`);
-  const rows = [...Map.groupBy(attempts, (a) => `${a.experiment} × ${a.eval}`)].map(([group, list]) => {
+  // Planned comes from the batch's own settings: run.ts saves an attempt only once it has a result,
+  // so an attempt cut off by a stopped machine is missing from attempts but still planned.
+  const planned = new Map<string, number>();
+  for (const e of manifest.experiments ?? [])
+    for (const ev of manifest.evals ?? []) planned.set(`${e.name} × ${ev}`, manifest.runsPerEval ?? 0);
+  const saved = Map.groupBy(manifest.attempts, (a) => `${a.experiment} × ${a.eval}`);
+  const byGroup = Map.groupBy(attempts, (a) => `${a.experiment} × ${a.eval}`);
+  const groups = [...new Set([...planned.keys(), ...saved.keys()])];
+  const rows = groups.map((group) => {
+    const list = byGroup.get(group) ?? [];
     const count = (o: Outcome) => list.filter((a) => a.outcome === o).length;
     const pass = count('pass');
     const graded = pass + count('agent');
-    const mean = (k: 'seconds' | 'openCodeEstUsd') => list.reduce((t, a) => t + a[k], 0) / list.length;
+    const mean = (k: 'seconds' | 'openCodeEstUsd') =>
+      list.length ? list.reduce((t, a) => t + a[k], 0) / list.length : 0;
     const stat = (xs: number[]) => ({ median: medianOf(xs), total: xs.length ? sumOf(xs) : null, known: xs.length });
-    const experiment = list[0]!.experiment;
+    const experiment = group.slice(0, group.indexOf(' × '));
     return {
       group,
-      scheduled: scheduled.get(group)?.length ?? list.length,
+      planned: planned.get(group) ?? null,
+      saved: saved.get(group)?.length ?? 0,
       completed: list.length,
       pass,
       graded,
@@ -222,8 +235,10 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
     experiments: manifest.experiments,
     stopped: manifest.stopped,
     skipped: manifest.attempts.length - ran.length,
-    // Valid only when every attempt that ran has a known outcome, as in next-evals' release gate.
-    valid: attempts.every((a) => a.outcome !== 'unknown'),
+    // A batch with no endedAt stopped before finishing; planned attempts may be missing.
+    incomplete: !manifest.endedAt,
+    // Valid only when the batch finished and every attempt that ran has a known outcome, as in next-evals' release gate.
+    valid: !!manifest.endedAt && attempts.every((a) => a.outcome !== 'unknown'),
     openRouterUsageDeltaUsd:
       manifest.openRouterUsageAtEnd === null || manifest.openRouterUsageAtStart === null
         ? null
@@ -244,7 +259,7 @@ if (import.meta.main) {
   console.table(
     report.rows.map((r) => ({
       'model × task': r.group,
-      'scheduled / completed': `${r.scheduled} / ${r.completed}`,
+      'planned / saved / completed': `${r.planned ?? '?'} / ${r.saved} / ${r.completed}`,
       'pass@1 (95% CI)': r.graded ? `${r.pass}/${r.graded} (${pct(r.wilson95[0])}–${pct(r.wilson95[1])})` : 'n/a',
       agent: r.agent,
       infra: r.infra,
@@ -261,6 +276,6 @@ if (import.meta.main) {
     for (const f of r.infraFailures) console.log(`infra: ${r.group} run ${f.run}: ${f.reason}`);
   const spend = report.openRouterUsageDeltaUsd === null ? 'unknown' : `$${report.openRouterUsageDeltaUsd.toFixed(2)}`;
   console.log(
-    `OpenRouter key usage delta (observed) ${spend}. $ per attempt is OpenCode's estimate. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
+    `OpenRouter key usage delta (observed) ${spend}. $ per attempt is OpenCode's estimate. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.incomplete ? 'INCOMPLETE: no endedAt, so planned attempts may be missing. NOT VALID.' : report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
   );
 }

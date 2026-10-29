@@ -158,7 +158,7 @@ test('presentation, live content and starter stay unknown whatever the saved sta
   expect(report.valid).toBe(false);
 });
 
-test('table rows: scheduled vs completed, infra kept out of pass@1 with reasons, medians and totals, skills, files', () => {
+test('table rows: saved vs completed, infra kept out of pass@1 with reasons, medians and totals, skills, files', () => {
   const runDir = mkdtempSync(join(tmpdir(), 'export-'));
   const attempts: object[] = [];
   const step = (total: number) => JSON.stringify({ type: 'step_finish', part: { tokens: { total } } });
@@ -192,7 +192,8 @@ test('table rows: scheduled vs completed, infra kept out of pass@1 with reasons,
   expect(existsSync(join(runDir, 'report.json'))).toBe(false); // the run folder stays read-only
   expect(report.rows[0]).toMatchObject({
     group: 'm-skills × demo',
-    scheduled: 3,
+    planned: null,
+    saved: 3,
     completed: 3,
     pass: 1,
     graded: 2,
@@ -208,7 +209,7 @@ test('table rows: scheduled vs completed, infra kept out of pass@1 with reasons,
   expect(report.rows[0]!.costUsd.total).toBeCloseTo(0.6);
   expect(report.rows[1]).toMatchObject({
     group: 'm × demo',
-    scheduled: 2,
+    saved: 2,
     completed: 1,
     skillsInstalled: false,
     skillUsed: 0,
@@ -226,7 +227,8 @@ test.skipIf(!existsSync(join(SMOKE, 'manifest.json')))('smoke run exports withou
   expect(
     report.rows.map((r) => [
       r.group,
-      r.scheduled,
+      r.planned,
+      r.saved,
       r.completed,
       r.pass,
       r.graded,
@@ -235,10 +237,40 @@ test.skipIf(!existsSync(join(SMOKE, 'manifest.json')))('smoke run exports withou
       r.filesChanged.known,
     ]),
   ).toEqual([
-    ['gpt-5.6-terra × sanity-typegen', 1, 1, 1, 1, 0, 0, 0],
-    ['gemini-3.5-flash × sanity-typegen', 1, 1, 1, 1, 0, 0, 0],
+    ['gpt-5.6-terra × sanity-typegen', 1, 1, 1, 1, 1, 0, 0, 0],
+    ['gemini-3.5-flash × sanity-typegen', 1, 1, 1, 1, 1, 0, 0, 0],
   ]);
   expect(report.rows.map((r) => r.tokens.total)).toEqual([1147087, 2553829]);
   expect(report.rows.map((r) => Math.round(r.seconds.total ?? NaN))).toEqual([367, 630]);
   expect(report.openRouterUsageDeltaUsd).toBeCloseTo(1.6049, 3);
+});
+
+test('an interrupted batch (no endedAt) shows planned attempts that never saved and is never valid', () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'export-'));
+  const outputDir = 'a/demo-run-1/ts';
+  mkdirSync(join(runDir, outputDir, 'demo/run-1/outputs'), { recursive: true });
+  writeFileSync(join(runDir, outputDir, 'demo/run-1/result.json'), JSON.stringify({ status: 'passed' }));
+  writeFileSync(join(runDir, outputDir, 'demo/run-1/outputs/eval.txt'), 'Tests ...');
+  const manifest = {
+    runId: 'r5',
+    experiments: [{ name: 'a' }, { name: 'b' }],
+    evals: ['demo'],
+    runsPerEval: 3,
+    attempts: [{ experiment: 'a', eval: 'demo', run: 1, invocations: [{ status: 'passed', seconds: 1 }], outputDir }],
+    stopped: null,
+    endedAt: '',
+  };
+  writeFileSync(join(runDir, 'manifest.json'), JSON.stringify(manifest));
+  const report = exportRun(runDir, join(mkdtempSync(join(tmpdir(), 'report-')), 'report.json'));
+  expect(report.rows.map((r) => [r.group, r.planned, r.saved, r.completed, r.pass])).toEqual([
+    ['a × demo', 3, 1, 1, 1],
+    ['b × demo', 3, 0, 0, 0],
+  ]);
+  expect(report).toMatchObject({ incomplete: true, valid: false });
+
+  writeFileSync(join(runDir, 'manifest.json'), JSON.stringify({ ...manifest, endedAt: '2026-10-29T10:00:00Z' }));
+  expect(exportRun(runDir, join(mkdtempSync(join(tmpdir(), 'report-')), 'report.json'))).toMatchObject({
+    incomplete: false,
+    valid: true,
+  });
 });

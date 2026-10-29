@@ -182,6 +182,7 @@ for (const configPath of positionals) {
       jobs.push(async () => {
         const attempt: Attempt = { experiment, eval: evalName, run, invocations: [] };
         manifest.attempts.push(attempt);
+        saveManifest(); // on disk before any model call, so a stopped machine can't hide a started attempt
         // A soft stop: attempts already running finish, and their cost shows in the end total.
         const stop = await spendStop(attempt);
         if (stop) {
