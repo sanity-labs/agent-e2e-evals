@@ -13,12 +13,12 @@ import { createSanitySkillsSetup } from './sanity-skills-setup.ts';
  * adapter fork is needed. The key is still the run's `apiKey`, so the runner's
  * own redaction covers it.
  *
- * The adapter also writes the literal key into opencode.json's `vercel`
- * provider, which agents read during runs (29 Oct audit). Overriding that field
- * with the env placeholder keeps the literal key out of the file. The key is
- * still in the agent's environment, so use a capped, per-batch key.
+ * The adapter would also write the literal key into opencode.json's `vercel`
+ * provider, a file the agent can read. Overriding that field with the env
+ * placeholder keeps the literal key out of the file. The key is still in the
+ * agent's environment, so use a capped, per-batch key.
  */
-export const KEY_PLACEHOLDER = '{env:AI_GATEWAY_API_KEY}';
+const KEY_PLACEHOLDER = '{env:AI_GATEWAY_API_KEY}';
 
 export function openRouterExperiment(options: { model: string; skills?: boolean }): ExperimentConfig {
   return {

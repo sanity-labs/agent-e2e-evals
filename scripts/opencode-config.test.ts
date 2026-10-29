@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test } from 'vitest';
-import { KEY_PLACEHOLDER, openRouterExperiment } from '../experiments/lib/openrouter.ts';
+import { openRouterExperiment } from '../experiments/lib/openrouter.ts';
 
 const require = createRequire(import.meta.url);
 const agentEvalDir = dirname(require.resolve('@vercel/agent-eval/package.json'));
@@ -16,6 +16,7 @@ const { generateOpenCodeConfig } = await import(
 );
 
 const FAKE_KEY = 'sk-or-FAKE-MARKER-456';
+const ENV_REFERENCE = '{env:AI_GATEWAY_API_KEY}';
 
 test.each([false, true])('opencode.json never holds the literal key (skills=%s)', (skills) => {
   const config = openRouterExperiment({ model: 'anthropic/claude-haiku-5.5', skills });
@@ -23,8 +24,8 @@ test.each([false, true])('opencode.json never holds the literal key (skills=%s)'
   const written = generateOpenCodeConfig(extraProviders, FAKE_KEY, 1_800_000);
   expect(written).not.toContain(FAKE_KEY);
   const parsed = JSON.parse(written);
-  expect(parsed.provider.vercel.options.apiKey).toBe(KEY_PLACEHOLDER);
-  expect(parsed.provider.openrouter.options.apiKey).toBe(KEY_PLACEHOLDER);
+  expect(parsed.provider.vercel.options.apiKey).toBe(ENV_REFERENCE);
+  expect(parsed.provider.openrouter.options.apiKey).toBe(ENV_REFERENCE);
 });
 
 test('without the override the runner would write the key (guards the test itself)', () => {
