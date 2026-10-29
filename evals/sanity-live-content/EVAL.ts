@@ -77,13 +77,11 @@ test('calls a function typed as the `sanityFetch` that `defineLive` returns', ()
   expect(live, 'expected a call under src/ to a function typed `DefinedFetchType` by next-sanity').toBe(true);
 });
 
-test('renders a component typed as the `SanityLive` that `defineLive` returns', () => {
-  const rendered = nodes.some(
+test('contains JSX for a component typed as the `SanityLive` that `defineLive` returns', () => {
+  const present = nodes.some(
     (n) =>
       (ts.isJsxSelfClosingElement(n) || ts.isJsxOpeningElement(n)) &&
       checker.typeToString(checker.getTypeAtLocation(n.tagName)).includes('DefinedLiveProps'),
   );
-  expect(rendered, 'expected JSX under src/ rendering a component typed with next-sanity `DefinedLiveProps`').toBe(
-    true,
-  );
+  expect(present, 'expected JSX under src/ for a component typed with next-sanity `DefinedLiveProps`').toBe(true);
 });

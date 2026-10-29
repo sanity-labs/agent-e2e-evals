@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { exportRun, gradeAttempt, wilson } from './export-results.ts';
+import { exportRun, wilson } from './export-results.ts';
 
 test('classifies attempts from the saved status and never guesses infra', () => {
   const runDir = mkdtempSync(join(tmpdir(), 'export-'));
@@ -111,18 +111,44 @@ test('a copied batch still finds its attempts, for relative and older absolute p
   expect(exportRun(runDir).attempts.map((a) => a.outcome)).toEqual(['pass', 'pass']);
 });
 
-test('structural-only evals stay unknown unless a person labels them', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'export-'));
-  mkdirSync(join(dir, 'sanity-live-content/run-1/outputs'), { recursive: true });
-  writeFileSync(join(dir, 'sanity-live-content/run-1/result.json'), JSON.stringify({ status: 'passed' }));
-  writeFileSync(join(dir, 'sanity-live-content/run-1/outputs/eval.txt'), 'Tests ...');
-  const attempt = {
-    experiment: 'm',
-    eval: 'sanity-live-content',
-    run: 1,
-    invocations: [{ status: 'passed', seconds: 1 }],
-    outputDir: dir,
-  };
-  expect(gradeAttempt(attempt)).toMatchObject({ outcome: 'unknown', reason: expect.stringContaining('manual label') });
-  expect(gradeAttempt(attempt, { outcome: 'pass', evidence: 'reviewed: posts render live' }).outcome).toBe('pass');
+test('presentation and live content stay unknown whatever the saved status, unless a person labels them', () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'export-'));
+  const attempts: object[] = [];
+  for (const evalName of ['sanity-presentation', 'sanity-live-content']) {
+    for (const [run, status] of [
+      [1, 'passed'],
+      [2, 'failed'],
+      [3, 'passed'],
+    ] as const) {
+      const outputDir = join(runDir, 'm', `${evalName}-run-${run}`);
+      mkdirSync(join(outputDir, evalName, 'run-1/outputs'), { recursive: true });
+      writeFileSync(join(outputDir, evalName, 'run-1/result.json'), JSON.stringify({ status }));
+      writeFileSync(join(outputDir, evalName, 'run-1/outputs/eval.txt'), 'Tests ...');
+      attempts.push({ experiment: 'm', eval: evalName, run, invocations: [{ status, seconds: 1 }], outputDir });
+    }
+  }
+  writeFileSync(join(runDir, 'manifest.json'), JSON.stringify({ runId: 'r1', attempts, stopped: null }));
+  // Run 3 of each task is reviewed by a person; the label wins.
+  writeFileSync(
+    join(runDir, 'labels.json'),
+    JSON.stringify({
+      'm/sanity-presentation/3': { outcome: 'pass', evidence: 'reviewed: overlays open the Studio' },
+      'm/sanity-live-content/3': { outcome: 'agent', evidence: 'reviewed: posts never update' },
+    }),
+  );
+
+  const report = exportRun(runDir);
+  expect(report.attempts.map((a) => [a.eval, a.run, a.outcome])).toEqual([
+    ['sanity-presentation', 1, 'unknown'],
+    ['sanity-presentation', 2, 'unknown'],
+    ['sanity-presentation', 3, 'pass'],
+    ['sanity-live-content', 1, 'unknown'],
+    ['sanity-live-content', 2, 'unknown'],
+    ['sanity-live-content', 3, 'agent'],
+  ]);
+  expect(report.rows).toEqual([
+    expect.objectContaining({ group: 'm × sanity-presentation', pass: 1, graded: 1, agent: 0, unknown: 2 }),
+    expect.objectContaining({ group: 'm × sanity-live-content', pass: 0, graded: 1, agent: 1, unknown: 2 }),
+  ]);
+  expect(report.valid).toBe(false);
 });

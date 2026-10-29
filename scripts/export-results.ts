@@ -36,7 +36,7 @@ interface Label {
  * not that the task works, so the outcome stays unknown until a person labels it
  * (research/presentation-live-contract.md).
  */
-export const LABEL_ONLY_EVALS = new Set(['sanity-presentation', 'sanity-live-content']);
+const LABEL_ONLY_EVALS = new Set(['sanity-presentation', 'sanity-live-content']);
 
 const readJson = <T>(p: string): T | undefined =>
   existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as T) : undefined;
@@ -91,7 +91,7 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
   if (attempt.invocations.length > 1)
     return outcome('unknown', `retried ${attempt.invocations.length - 1}x by the runner; label it in labels.json`);
   if (LABEL_ONLY_EVALS.has(attempt.eval))
-    return outcome('unknown', `structural checks ${result?.status ?? 'missing'}; outcome needs a manual label`);
+    return outcome('unknown', `saved validation status ${result?.status ?? 'missing'}; outcome needs a manual label`);
   if (!result) return outcome('unknown', attempt.error ? `runner error: ${attempt.error}` : 'no result.json');
   if (result.status === 'passed') return outcome('pass', 'typecheck and core checks passed');
   if (result.error?.includes('timed out')) return outcome('agent', result.error);

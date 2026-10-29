@@ -138,13 +138,13 @@ test('a route file at the Studio enable path calls `defineEnableDraftMode`', () 
   );
 });
 
-test('frontend renders `<VisualEditing />` from next-sanity', () => {
-  const rendered = F.nodes.some(
+test('frontend contains JSX for `<VisualEditing />` from next-sanity', () => {
+  const present = F.nodes.some(
     ([, n]) =>
       (ts.isJsxSelfClosingElement(n) || ts.isJsxOpeningElement(n)) &&
       F.isExport(n.tagName, 'next-sanity', 'VisualEditing'),
   );
-  expect(rendered, 'expected JSX rendering `VisualEditing` from `next-sanity/visual-editing`').toBe(true);
+  expect(present, 'expected JSX for `VisualEditing` from `next-sanity/visual-editing`').toBe(true);
 });
 
 test('a Sanity client config sets `stega.studioUrl`', () => {
