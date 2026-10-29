@@ -42,30 +42,49 @@ function fakeDataset(store: Map<string, Doc>, o: Obs) {
     let body = '';
     req.on('data', (d) => (body += d));
     req.on('end', async () => {
-      const send = (status: number, json: unknown) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
+      const send = (status: number, json: unknown) =>
+        res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
       const url = new URL(req.url!.replace(/^\/+/, '/'), 'http://x');
       if (req.headers.host === `127.0.0.1:${PORT}` && url.pathname.includes('/blueprints/stacks')) return send(200, []); // runner's own lookup
       const m = url.pathname.match(/^\/v[\w-]+\/data\/(mutate|doc|query)\/([^/]+)(?:\/(.+))?$/);
       try {
-        if (req.headers.host !== `${target.projectId}.127.0.0.1:${PORT}` || !m || m[2] !== target.dataset) throw new Error('not modelled');
+        if (req.headers.host !== `${target.projectId}.127.0.0.1:${PORT}` || !m || m[2] !== target.dataset)
+          throw new Error('not modelled');
         if (m[1] === 'doc') return send(200, { documents: m[3]!.split(',').flatMap((id) => store.get(id) ?? []) });
         if (m[1] === 'query') {
-          const params = Object.fromEntries([...url.searchParams].filter(([k]) => k.startsWith('$')).map(([k, v]) => [k.slice(1), JSON.parse(v)]));
+          const params = Object.fromEntries(
+            [...url.searchParams].filter(([k]) => k.startsWith('$')).map(([k, v]) => [k.slice(1), JSON.parse(v)]),
+          );
           const q = body ? JSON.parse(body) : { query: url.searchParams.get('query'), params };
-          return send(200, { result: await (await evaluate(parse(q.query), { dataset: [...store.values()], params: q.params })).get(), ms: 0 });
+          return send(200, {
+            result: await (
+              await evaluate(parse(q.query), {
+                dataset: [...store.values()],
+                params: q.params,
+                sanity: { projectId: target.projectId!, dataset: target.dataset! },
+              })
+            ).get(),
+            ms: 0,
+          });
         }
         const results = [];
         for (const mu of JSON.parse(body).mutations) {
           const arg = Object.values(mu)[0] as { id?: string; _id?: string; query?: string };
           const id = arg.id ?? arg._id;
           if (!id || arg.query) throw new Error('mutation by query not modelled');
-          if (mu.patch && !store.has(id)) return send(409, { error: { type: 'mutationError', description: `Document "${id}" not found` } });
+          if (mu.patch && !store.has(id))
+            return send(409, { error: { type: 'mutationError', description: `Document "${id}" not found` } });
           const existed = store.has(id);
           const next = new Mutation({ mutations: [mu] }).apply((store.get(id) ?? null) as never) as Doc | null;
-          next ? store.set(id, next) : store.delete(id);
-          results.push({ id, operation: mu.delete ? 'delete' : existed ? 'update' : 'create' });
+          if (next) store.set(id, next);
+          else store.delete(id);
+          results.push({
+            id,
+            operation: mu.delete ? 'delete' : existed ? 'update' : 'create',
+            document: store.get(id),
+          });
         }
-        return send(200, { transactionId: 'tx', results, documents: results.flatMap((r) => store.get(r.id) ?? []) });
+        return send(200, { transactionId: 'tx', results });
       } catch (err) {
         o.unknown.push(`${req.method} ${req.headers.host}${url.pathname}: ${(err as Error).message}`);
         return send(501, { error: 'not modelled by the grader' });
@@ -81,8 +100,28 @@ async function runCase(kind: 'create' | 'update', before: Doc | null, after: Doc
   if (on.includes(kind) || on.includes('publish')) {
     const server = fakeDataset(store, o);
     await new Promise<void>((r) => server.listen(PORT, '127.0.0.1', r));
-    const args = ['functions', 'test', fn!.name, '--event', kind, '--data-before', JSON.stringify(before ?? {}), '--data-after', JSON.stringify(after), '--project-id', target.projectId!, '--dataset', target.dataset!];
-    const env = { ...process.env, NODE_OPTIONS: `--import ${pathToFileURL(STUB).href}`, LOOKUP_LOG: LOOKUPS, SANITY_INTERNAL_ENV: `http://127.0.0.1:${PORT}/`, SANITY_AUTH_TOKEN: 'fake-token-not-a-secret' };
+    const args = [
+      'functions',
+      'test',
+      fn!.name,
+      '--event',
+      kind,
+      '--data-before',
+      JSON.stringify(before ?? {}),
+      '--data-after',
+      JSON.stringify(after),
+      '--project-id',
+      target.projectId!,
+      '--dataset',
+      target.dataset!,
+    ];
+    const env = {
+      ...process.env,
+      NODE_OPTIONS: `--import ${pathToFileURL(STUB).href}`,
+      LOOKUP_LOG: LOOKUPS,
+      SANITY_INTERNAL_ENV: `http://127.0.0.1:${PORT}/`,
+      SANITY_AUTH_TOKEN: 'fake-token-not-a-secret',
+    };
     let out = '';
     const code = await new Promise<number | null>((done) => {
       const child = spawn('./node_modules/.bin/sanity-run', args, { env });
@@ -113,7 +152,9 @@ beforeAll(async () => {
     loadErrors = errors.length ? `(loader errors: ${JSON.stringify(errors)})` : '';
     if (fns.length > 1) harness.push(`${fns.length} document functions; the grader does not pick one`);
     else if (fns.length && (target.projectId !== FIXTURE.projectId || target.dataset !== FIXTURE.dataset))
-      harness.push(`blueprint targets ${target.projectId}/${target.dataset}, not the fixture's ${FIXTURE.projectId}/${FIXTURE.dataset}`);
+      harness.push(
+        `blueprint targets ${target.projectId}/${target.dataset}, not the fixture's ${FIXTURE.projectId}/${FIXTURE.dataset}`,
+      );
     else fn = fns[0];
   } catch (err) {
     harness.push(`Sanity CLI blueprint loader unavailable or failed: ${(err as Error).message}`);
@@ -137,7 +178,7 @@ function observe(name: string): Doc {
   return strip(o.final!);
 }
 const slugOf = (d: Doc) => (d.slug as { current?: unknown } | undefined)?.current;
-const withoutSlug = ({ slug, ...rest }: Doc) => rest;
+const withoutSlug = ({ slug: _slug, ...rest }: Doc) => rest;
 
 test('A: a new post published without a slug ends with slug "hello-world" and nothing else changed', () => {
   const d = observe('A');
