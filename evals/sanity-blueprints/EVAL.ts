@@ -23,7 +23,7 @@ const STUB = join(tmpdir(), 'eval-dns-stub.mjs');
 const LOOKUPS = join(tmpdir(), 'eval-lookups.log');
 // Routing only, not isolation: every hostname resolves to loopback and non-loopback names are logged.
 const STUB_SRC = `import dns from 'node:dns'; import {appendFileSync} from 'node:fs';
-const note = (h) => { if (!/(^|\\.)127\\.0\\.0\\.1$|^localhost$/.test(h)) appendFileSync(process.env.LOOKUP_LOG, h + '\\n') };
+const note = (h) => { if (!/(^|\\.)localhost$|^127\\.0\\.0\\.1$/.test(h)) appendFileSync(process.env.LOOKUP_LOG, h + '\\n') };
 dns.lookup = (h, o, cb) => { if (typeof o === 'function') cb = o, o = {}; note(h); o && o.all ? cb(null, [{address: '127.0.0.1', family: 4}]) : cb(null, '127.0.0.1', 4) };
 dns.promises.lookup = async (h, o) => { note(h); return o && o.all ? [{address: '127.0.0.1', family: 4}] : {address: '127.0.0.1', family: 4} };`;
 type Doc = Record<string, unknown> & { _id: string };
@@ -45,10 +45,10 @@ function fakeDataset(store: Map<string, Doc>, o: Obs) {
       const send = (status: number, json: unknown) =>
         res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(json));
       const url = new URL(req.url!.replace(/^\/+/, '/'), 'http://x');
-      if (req.headers.host === `127.0.0.1:${PORT}` && url.pathname.includes('/blueprints/stacks')) return send(200, []); // runner's own lookup
+      if (req.headers.host === `localhost:${PORT}` && url.pathname.includes('/blueprints/stacks')) return send(200, []); // runner's own lookup
       const m = url.pathname.match(/^\/v[\w-]+\/data\/(mutate|doc|query)\/([^/]+)(?:\/(.+))?$/);
       try {
-        if (req.headers.host !== `${target.projectId}.127.0.0.1:${PORT}` || !m || m[2] !== target.dataset)
+        if (req.headers.host !== `${target.projectId}.localhost:${PORT}` || !m || m[2] !== target.dataset)
           throw new Error('not modelled');
         if (m[1] === 'doc') return send(200, { documents: m[3]!.split(',').flatMap((id) => store.get(id) ?? []) });
         if (m[1] === 'query') {
@@ -119,7 +119,7 @@ async function runCase(kind: 'create' | 'update', before: Doc | null, after: Doc
       ...process.env,
       NODE_OPTIONS: `--import ${pathToFileURL(STUB).href}`,
       LOOKUP_LOG: LOOKUPS,
-      SANITY_INTERNAL_ENV: `http://127.0.0.1:${PORT}/`,
+      SANITY_INTERNAL_ENV: `http://localhost:${PORT}/`,
       SANITY_AUTH_TOKEN: 'fake-token-not-a-secret',
     };
     let out = '';
