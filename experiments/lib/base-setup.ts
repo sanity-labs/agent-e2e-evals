@@ -9,11 +9,11 @@ export const sanityEvalEnv: Record<string, string> = {
 /** `mcp-smoketest` needs the Sanity MCP server, which the OpenRouter lane does not configure yet. */
 export const nonMcpEvals: EvalFilter = (name) => name !== 'mcp-smoketest';
 
-/** Writes the .env the task fixtures expect. Live tokens are added only by evals that need them. */
+/** Writes the .env the task fixtures expect, placeholders only: the same setup runs in the agent sandbox and the separate verifier, so the host token is never written into either. */
 export const baseSetup: SetupFunction = async (sandbox) => {
   const dotEnv = [
     'SANITY_API_READ_TOKEN=placeholder',
-    `SANITY_AUTH_TOKEN=${process.env.SANITY_AUTH_TOKEN ?? 'placeholder'}`,
+    'SANITY_AUTH_TOKEN=placeholder',
     `SANITY_INTERNAL_ENV=${sanityEvalEnv.SANITY_INTERNAL_ENV}`,
     `SANITY_API_HOST=${sanityEvalEnv.SANITY_API_HOST}`,
     '',
