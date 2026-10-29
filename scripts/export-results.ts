@@ -36,7 +36,7 @@ interface Label {
  * not that the task works, so the outcome stays unknown until a person labels it
  * (research/presentation-live-contract.md).
  */
-const LABEL_ONLY_EVALS = new Set(['sanity-presentation', 'sanity-live-content']);
+const LABEL_ONLY_EVALS = new Set(['sanity-presentation', 'sanity-live-content', 'sanity-nextjs-starter']);
 
 const readJson = <T>(p: string): T | undefined =>
   existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as T) : undefined;

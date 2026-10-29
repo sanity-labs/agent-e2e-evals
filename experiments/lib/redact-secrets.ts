@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import type { EvalRunData, RunCompleteHook } from '@vercel/agent-eval';
 import mapObject from 'map-obj';
 
@@ -25,6 +26,13 @@ export const redactSecrets: RunCompleteHook = ({ config, runData }) => {
   if (config.copyFiles === 'none') {
     runData.generatedFiles = {};
     runData.deletedFiles = [];
+  } else {
+    // Only the starter saves files (scripts/run.ts). Keep its app/ changes and drop env files
+    // outright: their bytes are Buffers, which the string scrubber below never reads.
+    // Artifact hygiene only, not a guarantee that saved source holds no secret.
+    const keep = (p: string) => p.startsWith('app/') && !basename(p).startsWith('.env');
+    runData.generatedFiles = Object.fromEntries(Object.entries(runData.generatedFiles ?? {}).filter(([p]) => keep(p)));
+    runData.deletedFiles = (runData.deletedFiles ?? []).filter(keep);
   }
 
   return mapObject(

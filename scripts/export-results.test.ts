@@ -111,10 +111,10 @@ test('a copied batch still finds its attempts, for relative and older absolute p
   expect(exportRun(runDir).attempts.map((a) => a.outcome)).toEqual(['pass', 'pass']);
 });
 
-test('presentation and live content stay unknown whatever the saved status, unless a person labels them', () => {
+test('presentation, live content and starter stay unknown whatever the saved status, unless a person labels them', () => {
   const runDir = mkdtempSync(join(tmpdir(), 'export-'));
   const attempts: object[] = [];
-  for (const evalName of ['sanity-presentation', 'sanity-live-content']) {
+  for (const evalName of ['sanity-presentation', 'sanity-live-content', 'sanity-nextjs-starter']) {
     for (const [run, status] of [
       [1, 'passed'],
       [2, 'failed'],
@@ -134,6 +134,7 @@ test('presentation and live content stay unknown whatever the saved status, unle
     JSON.stringify({
       'm/sanity-presentation/3': { outcome: 'pass', evidence: 'reviewed: overlays open the Studio' },
       'm/sanity-live-content/3': { outcome: 'agent', evidence: 'reviewed: posts never update' },
+      'm/sanity-nextjs-starter/3': { outcome: 'pass', evidence: 'reviewed: home page fetched from its project' },
     }),
   );
 
@@ -145,10 +146,14 @@ test('presentation and live content stay unknown whatever the saved status, unle
     ['sanity-live-content', 1, 'unknown'],
     ['sanity-live-content', 2, 'unknown'],
     ['sanity-live-content', 3, 'agent'],
+    ['sanity-nextjs-starter', 1, 'unknown'],
+    ['sanity-nextjs-starter', 2, 'unknown'],
+    ['sanity-nextjs-starter', 3, 'pass'],
   ]);
   expect(report.rows).toEqual([
     expect.objectContaining({ group: 'm × sanity-presentation', pass: 1, graded: 1, agent: 0, unknown: 2 }),
     expect.objectContaining({ group: 'm × sanity-live-content', pass: 0, graded: 1, agent: 1, unknown: 2 }),
+    expect.objectContaining({ group: 'm × sanity-nextjs-starter', pass: 1, graded: 1, agent: 0, unknown: 2 }),
   ]);
   expect(report.valid).toBe(false);
 });

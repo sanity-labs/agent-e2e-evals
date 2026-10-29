@@ -96,7 +96,7 @@ test('project uses next-sanity (Sanity + Next.js integration)', async () => {
   expect(getDeps(pkg)).toHaveProperty('next-sanity');
 });
 
-test('Sanity Studio was scaffolded via the Sanity CLI', async () => {
+test('a Studio config exists and its package depends on `sanity`', async () => {
   expect(studioDir, 'expected a sanity.config.ts(x) file under ./app/').not.toBeUndefined();
   const studioPkg = await readJson(path.join(studioDir!, 'package.json'));
   expect(getDeps(studioPkg), 'expected `sanity` as a dependency in the studio package').toHaveProperty('sanity');
@@ -105,18 +105,4 @@ test('Sanity Studio was scaffolded via the Sanity CLI', async () => {
 test('sanity.cli.ts exists', async () => {
   const files = [...(await collect(`${rootDir}/**/sanity.cli.ts`)), ...(await collect(`${rootDir}/**/sanity.cli.js`))];
   expect(files.length, 'expected a sanity.cli.{ts,js} file somewhere under ./app/').toBeGreaterThan(0);
-});
-
-test('env files reference the canonical Sanity env vars', async () => {
-  const envFiles = [
-    ...(await collect(`${rootDir}/**/.env`)),
-    ...(await collect(`${rootDir}/**/.env.local`)),
-    ...(await collect(`${rootDir}/**/.env.development`)),
-    ...(await collect(`${rootDir}/**/.env.development.local`)),
-  ];
-  const env = (await Promise.all(envFiles.map((p) => readFile(p))))
-    .filter((c): c is string => c !== undefined)
-    .join('\n');
-  expect(env).toMatch(/NEXT_PUBLIC_SANITY_PROJECT_ID/);
-  expect(env).toMatch(/NEXT_PUBLIC_SANITY_DATASET/);
 });

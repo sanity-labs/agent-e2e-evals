@@ -159,6 +159,10 @@ async function spendStop(attempt: Attempt): Promise<string | null> {
   return manifest.stopped;
 }
 
+// The starter's build installs the app itself, so an agent edit to either entrypoint must not
+// reach the grader. Its app changes are saved for manual review (env files dropped by redactSecrets).
+const STARTER = { protectedPaths: ['package.json', 'build.mjs'], copyFiles: 'changed' as const };
+
 const jobs: Array<() => Promise<void>> = [];
 for (const configPath of positionals) {
   const config = await loadConfig(resolve(configPath));
@@ -193,6 +197,7 @@ for (const configPath of positionals) {
               model,
               runs: 1,
               evals: evalName,
+              ...(evalName === 'sanity-nextjs-starter' ? STARTER : {}),
               onRunComplete: async (context) => {
                 const runData = (await config.onRunComplete?.(context)) ?? context.runData;
                 const { status, duration, error, usage: tokens } = runData.result;
