@@ -5,7 +5,7 @@
   "type": "module",
   "license": "UNLICENSED",
   "scripts": {
-    "build": "tsc --noEmit && sanity schema extract --path .sanity/schema.json"
+    "build": "tsc --noEmit && sanity schema extract --force --path .sanity/schema.json"
   },
   "dependencies": {
     "react": "^19.2.5",
