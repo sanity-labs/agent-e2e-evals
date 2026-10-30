@@ -270,3 +270,22 @@ test('an interrupted batch (no endedAt) shows planned attempts that never saved 
     valid: true,
   });
 });
+
+test('a failed attempt whose grader reported UNKNOWN stays unknown; a code frame quoting UNKNOWN does not count', () => {
+  const runDir = mkdtempSync(join(tmpdir(), 'export-unknown-'));
+  const attempts: object[] = [];
+  const add = (run: number, evalText: string) => {
+    const outputDir = join(runDir, 'm', `demo-run-${run}`);
+    mkdirSync(join(outputDir, 'demo/run-1/outputs'), { recursive: true });
+    writeFileSync(join(outputDir, 'demo/run-1/result.json'), JSON.stringify({ status: 'failed', duration: 9 }));
+    writeFileSync(join(outputDir, 'demo/run-1/outputs/eval.txt'), evalText);
+    attempts.push({ experiment: 'm', eval: 'demo', run, invocations: [{ status: 'failed', seconds: 9 }], outputDir });
+  };
+  add(1, ' × EVAL.ts > a\n   \x1b[31m→ UNKNOWN (grader): the migration read the API\x1b[39m\n');
+  add(2, 'AssertionError: migration: no migrations/ folder\n    230|   expect(setup, `UNKNOWN (grader): ${setup}`)\n');
+  writeFileSync(join(runDir, 'manifest.json'), JSON.stringify({ runId: 'r', attempts }));
+  expect(exportRun(runDir).attempts.map((a) => [a.run, a.outcome])).toEqual([
+    [1, 'unknown'],
+    [2, 'agent'],
+  ]);
+});

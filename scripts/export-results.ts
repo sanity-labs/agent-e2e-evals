@@ -14,6 +14,7 @@
  */
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 type Outcome = 'pass' | 'agent' | 'infra' | 'unknown';
 
@@ -119,6 +120,8 @@ function attemptDir(batchDir: string, runId: string, outputDir: string) {
   return i === -1 ? outputDir : resolve(batchDir, outputDir.slice(i + runId.length + 2));
 }
 
+const GRADER_UNKNOWN = /^\s*(→|AssertionError:)\s*UNKNOWN \(/m;
+
 export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', runId = '') {
   const runDir = attempt.outputDir
     ? join(attemptDir(batchDir, runId, attempt.outputDir), attempt.eval, 'run-1')
@@ -164,6 +167,9 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
   if (!result) return outcome('unknown', attempt.error ? `runner error: ${attempt.error}` : 'no result.json');
   if (result.status === 'passed') return outcome('pass', 'typecheck and core checks passed');
   if (result.error?.includes('timed out')) return outcome('agent', result.error);
+  // A grader may declare it could not observe the attempt ("UNKNOWN (" in an assertion message, not a code frame).
+  if (testsRan && GRADER_UNKNOWN.test(stripVTControlCharacters(readFileSync(join(runDir, 'outputs/eval.txt'), 'utf8'))))
+    return outcome('unknown', 'the grader reported it could not observe this attempt; see outputs/eval.txt');
   if (testsRan) return outcome('agent', 'typecheck or a core check failed; see outputs/');
   return outcome('unknown', result.error ? `no test output: ${result.error}` : 'no test output');
 }

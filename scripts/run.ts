@@ -162,9 +162,11 @@ async function spendStop(attempt: Attempt): Promise<string | null> {
 // The starter's build installs the app itself, so an agent edit to either entrypoint must not
 // reach the grader. Its app changes are saved for manual review (env files dropped by redactSecrets).
 const STARTER = { protectedPaths: ['package.json', 'build.mjs'], copyFiles: 'changed' as const };
-// The Function task is labelled by hand, so its changed files are saved for wiring review. Deleted
+// The Function and migration tasks save their changed files for failure review. Deleted
 // files are not saved: changed-file evidence, not a replayable final tree.
 const FUNCTION = { copyFiles: 'changed' as const };
+// The migration grader typechecks with the shipped tsconfig.json, so the agent must not change it.
+const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
 
 const jobs: Array<() => Promise<void>> = [];
 for (const configPath of positionals) {
@@ -202,7 +204,7 @@ for (const configPath of positionals) {
               runs: 1,
               evals: evalName,
               ...(evalName === 'sanity-nextjs-starter' ? STARTER : {}),
-              ...(evalName === 'sanity-blueprints' ? FUNCTION : {}),
+              ...(evalName === 'sanity-blueprints' ? FUNCTION : evalName === 'sanity-migration' ? MIGRATION : {}),
               onRunComplete: async (context) => {
                 const runData = (await config.onRunComplete?.(context)) ?? context.runData;
                 const { status, duration, error, usage: tokens } = runData.result;
