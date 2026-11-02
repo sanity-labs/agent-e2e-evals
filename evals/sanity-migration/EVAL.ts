@@ -56,9 +56,9 @@ const api = {projectId: 'xg4e0byh', dataset: 'production', apiVersion: 'v2025-02
 try {
   for await (const batch of dryRun({api, exportPath}, found[0].migration)) {
     try {
-      for (const m of [batch].flat(Infinity).flatMap((m) => (m && m.type === 'transaction' ? m.mutations : [m])))
-        if (m && m.document) new Transaction().createOrReplace(m.document)
-      docs = applyInCollection(docs, batch)
+      const mutations = [batch].flat(Infinity).flatMap((m) => (m && m.type === 'transaction' ? m.mutations : [m]))
+      for (const m of mutations) if (m && m.document) new Transaction().createOrReplace(m.document)
+      docs = applyInCollection(docs, mutations)
     }
     catch (e) {
       if (/already exist|nonexistent document|not a valid document ID/i.test(e.message)) done({status: 'fail', reason: 'a write would be rejected: ' + e.message})
