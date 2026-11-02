@@ -10,5 +10,6 @@ export const post = defineType({
     defineField({name: 'publishedAt', type: 'datetime'}),
     defineField({name: 'body', title: 'Body (Markdown)', type: 'text'}),
     defineField({name: 'author', title: 'Author name', type: 'string'}),
+    defineField({name: 'related', title: 'Related post slugs', type: 'array', of: [{type: 'string'}]}),
   ],
 })

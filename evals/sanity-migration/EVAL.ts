@@ -1,6 +1,6 @@
 /**
- * Offline behaviour grader for sanity-migration (contract: research/migration-task-v2.md plus critic's design-v2
- * amendments). The Sanity CLI's own resolver finds the migration; the public dryRun from @sanity/migrate runs it on a
+ * Offline behaviour grader for sanity-migration, task version r3 (contract: research/migration-task-v2.md plus
+ * critic's design-v2 amendments, extended by research/migration-task-v3-contract.md: related slugs and release versions). The Sanity CLI's own resolver finds the migration; the public dryRun from @sanity/migrate runs it on a
  * hidden export (real documentTypes, filter, system-id and draft rules); applyInCollection from @sanity/mutate applies
  * each batch and rejects writes a server would reject. Each pass runs in a fresh Node process. A message starting
  * "UNKNOWN" means the grader could not observe the attempt, not that the model failed. A pass means "passes the
@@ -127,7 +127,18 @@ const PT_BODY = [
 ];
 const REF_EXISTING = { _type: 'reference', _ref: 'author-existing' };
 // Added to pass 2's input: a later post naming a known author must reuse that author's document.
-const LATE: Doc = { _id: 'h-late', _type: 'post', title: 'Late', author: '  ann LEE', body: PT_BODY };
+const LATE: Doc = {
+  _id: 'h-late',
+  _type: 'post',
+  title: 'Late',
+  slug: { _type: 'slug', current: 'late' },
+  author: '  ann LEE',
+  body: PT_BODY,
+  related: ['features'],
+};
+// Already-converted related items stay exactly as they are.
+const REL_EXISTING = { _type: 'reference', _ref: 'h-features', _key: 'r0' };
+const REL_DONE = [{ _type: 'reference', _ref: 'h-nested', _key: 'x1' }];
 const HIDDEN: Doc[] = [
   {
     _id: 'h-features',
@@ -135,31 +146,45 @@ const HIDDEN: Doc[] = [
     title: 'Features',
     slug: { _type: 'slug', current: 'features' },
     author: 'Ann Lee',
+    related: ['nested', 'body-done'],
     body: '# Getting started\n\nSanity is a **content platform** for *structured* content.\n\n## Install\n\nRead the [docs](https://www.sanity.io/docs) first.\n\n- Create a project\n- Add a schema\n\n1. Run the CLI\n2. Deploy the Studio',
   },
   {
     _id: 'drafts.h-features',
     _type: 'post',
     title: 'Features (draft)',
+    slug: { _type: 'slug', current: 'features' },
     author: ' ann lee ',
+    related: ['nested'],
     body: 'Draft text with a [link](https://example.com/draft).',
   },
   {
     _id: 'h-nested',
     _type: 'post',
     title: 'Nested',
+    slug: { _type: 'slug', current: 'nested' },
     publishedAt: '2026-03-01T09:00:00Z',
     author: 'ANN LEE',
+    related: ['features'],
     body: 'Shopping:\n\n- Fruit\n  - Apple\n- Bread\n\n### Notes\n\nA ***both*** line.',
   },
   {
     _id: 'h-mixed',
     _type: 'post',
     title: 'Mixed',
+    slug: { _type: 'slug', current: 'mixed' },
     author: 'Eve Ng',
+    related: [REL_EXISTING, 'nested'],
     body: 'Use *italics* and a [link with **bold**](https://example.com/a) here.',
   },
-  { _id: 'h-pt-body', _type: 'post', title: 'Body done', author: 'Bob Stone', body: PT_BODY },
+  {
+    _id: 'h-pt-body',
+    _type: 'post',
+    title: 'Body done',
+    slug: { _type: 'slug', current: 'body-done' },
+    author: 'Bob Stone',
+    body: PT_BODY,
+  },
   {
     _id: 'h-ref-author',
     _type: 'post',
@@ -167,7 +192,23 @@ const HIDDEN: Doc[] = [
     author: REF_EXISTING,
     body: 'A plain paragraph.\n\nAnd a second one.',
   },
-  { _id: 'h-both-done', _type: 'post', title: 'Both done', author: REF_EXISTING, body: PT_BODY },
+  { _id: 'h-both-done', _type: 'post', title: 'Both done', author: REF_EXISTING, body: PT_BODY, related: REL_DONE },
+  {
+    _id: 'versions.rel-spring.h-nested',
+    _type: 'post',
+    title: 'Nested (spring)',
+    slug: { _type: 'slug', current: 'nested' },
+    author: 'Eve Ng ',
+    body: 'A plain paragraph.\n\nAnd a second one.',
+    related: ['mixed', 'features'],
+  },
+  {
+    _id: '_.releases.rel-spring',
+    _type: 'system.release',
+    name: 'rel-spring',
+    state: 'active',
+    metadata: { title: 'Spring launch', releaseType: 'asap' },
+  },
   { _id: 'h-no-author', _type: 'post', title: 'No author', body: 'A plain paragraph.\n\nAnd a second one.' },
   { _id: 'h-empty-body', _type: 'post', title: 'Empty', author: 'Dan Wu', body: '' },
   { _id: 'h-no-body', _type: 'post', title: 'No body', author: 'dan wu' },
@@ -182,6 +223,7 @@ const EXPECTED_BODY: Record<string, Block[]> = {
   'h-mixed': MIXED,
   'h-ref-author': PLAIN,
   'h-no-author': PLAIN,
+  'versions.rel-spring.h-nested': PLAIN,
 };
 const EXPECTED_AUTHOR: Record<string, string> = {
   'h-features': 'ann lee',
@@ -191,6 +233,16 @@ const EXPECTED_AUTHOR: Record<string, string> = {
   'h-pt-body': 'bob stone',
   'h-empty-body': 'dan wu',
   'h-no-body': 'dan wu',
+  'versions.rel-spring.h-nested': 'eve ng',
+};
+// Each slug belongs to exactly one published post; links from drafts and release versions point to it too.
+const EXPECTED_RELATED: Record<string, string[]> = {
+  'h-features': ['h-nested', 'h-pt-body'],
+  'drafts.h-features': ['h-nested'],
+  'h-nested': ['h-features'],
+  'h-mixed': ['h-features', 'h-nested'],
+  'h-both-done': ['h-nested'],
+  'versions.rel-spring.h-nested': ['h-mixed', 'h-features'],
 };
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -376,7 +428,7 @@ test('author names become references to one author document per person', () => {
     expect(r._type === undefined || r._type === 'reference', `${id}.author has _type ${String(r._type)}`).toBe(true);
     const target = docs.get(String(r._ref));
     expect(target?._type, `${id}.author points to ${String(r._ref)}, which is not an author document`).toBe('author');
-    expect(String(r._ref).startsWith('drafts.'), `${id}.author points to a draft id`).toBe(false);
+    expect(/^(drafts|versions)\./.test(String(r._ref)), `${id}.author points to a draft or version id`).toBe(false);
     expect(norm(String(target?.name)), `${id}.author resolves to the wrong person`).toBe(name);
   }
   expect(docs.get('h-ref-author')?.author, 'an existing reference is unchanged').toEqual(REF_EXISTING);
@@ -384,15 +436,50 @@ test('author names become references to one author document per person', () => {
   expect(docs.get('h-no-author')?.author, 'a post with no author gets none').toBeUndefined();
 });
 
+test('related slugs become references to the published posts, in order, with keys', () => {
+  const docs = byId(check(first, 'migration'));
+  const problems: string[] = [];
+  for (const [id, expected] of Object.entries(EXPECTED_RELATED)) {
+    const rel = docs.get(id)?.related;
+    if (!Array.isArray(rel)) {
+      problems.push(`${id}.related is ${JSON.stringify(rel)?.slice(0, 80)}, not an array`);
+      continue;
+    }
+    keyProblems(`${id}.related`, rel, problems);
+    const got = rel.map((r) =>
+      isObj(r) && r._type === 'reference' && typeof r._ref === 'string'
+        ? r._ref
+        : `(not a reference: ${JSON.stringify(r)?.slice(0, 60)})`,
+    );
+    if (JSON.stringify(got) !== JSON.stringify(expected))
+      problems.push(`${id}.related points to ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}`);
+  }
+  expect(problems, problems.join('\n')).toEqual([]);
+  expect(
+    (docs.get('h-mixed')?.related as unknown[] | undefined)?.[0],
+    'an existing related reference is unchanged',
+  ).toEqual(REL_EXISTING);
+  expect(docs.get('h-both-done')?.related, 'existing related references are unchanged').toEqual(REL_DONE);
+  for (const before of HIDDEN.filter((d) => d._type === 'post' && !('related' in d))) {
+    const rel = docs.get(before._id)?.related;
+    expect(
+      rel === undefined || (Array.isArray(rel) && rel.length === 0),
+      `${before._id}.related became ${JSON.stringify(rel)}, expected unset or []`,
+    ).toBe(true);
+  }
+});
+
 test('every other document and field is preserved', () => {
   const docs = byId(check(first, 'migration'));
   for (const before of HIDDEN) {
     const after = docs.get(before._id);
     expect(after, `${before._id} was deleted`).toBeDefined();
-    const fields = before._type === 'post' ? ['body', 'author'] : [];
+    const fields = before._type === 'post' ? ['body', 'author', 'related'] : [];
     // Posts may gain fields (the contract only says existing ones stay unchanged); other documents must be untouched.
     const kept = before._type === 'post' ? pick(strip(after!), Object.keys(before)) : strip(after!);
-    expect(without(kept, ...fields), `${before._id} changed outside body/author`).toEqual(without(before, ...fields));
+    expect(without(kept, ...fields), `${before._id} changed outside body/author/related`).toEqual(
+      without(before, ...fields),
+    );
   }
   const added = [...docs.values()].filter((d) => !HIDDEN.some((h) => h._id === d._id));
   expect(
@@ -419,9 +506,13 @@ test('running the migration again, in a fresh process on its output plus one new
     ref(byId(twice).get(LATE._id)?.author),
     'a post added later by Ann Lee points to her existing author document',
   ).toEqual(ref(byId(once).get('h-features')?.author));
+  const late = byId(twice).get(LATE._id)?.related;
+  expect(Array.isArray(late) ? late.map(ref) : late, 'a post added later links to the published Features post').toEqual(
+    ['h-features'],
+  );
 });
 
-test('the project typechecks, and the schema has a Portable Text body, an author reference and an author type with a name', () => {
+test('the project typechecks, and the schema has a Portable Text body, an author reference, related post references and an author type with a name', () => {
   expect(setup, `UNKNOWN (grader): ${setup}`).toBe('');
   expect(typeError).toBe('');
   expect(schemaError).toBe('');
@@ -450,6 +541,14 @@ test('the project typechecks, and the schema has a Portable Text body, an author
     true,
   );
   expect(field(post, 'author')?.dereferencesTo, 'post.author is a reference to author').toBe('author');
+  const related = field(post, 'related');
+  const relOf = related?.type === 'array' ? deref(related.of) : undefined;
+  const relMembers = relOf?.type === 'union' && Array.isArray(relOf.of) ? relOf.of.map(deref) : [relOf];
+  expect(
+    // Array members are keyed objects whose `rest` names the reference type (e.g. post.reference).
+    relMembers.some((m) => m?.dereferencesTo === 'post' || deref(m?.rest)?.dereferencesTo === 'post'),
+    `post.related is ${JSON.stringify(related)?.slice(0, 120)}, not an array of references to post`,
+  ).toBe(true);
   const author = types.get('author');
   expect(author?.type, 'author is a document type').toBe('document');
   expect(field(author, 'name')?.type, 'author has a string name field').toBe('string');
