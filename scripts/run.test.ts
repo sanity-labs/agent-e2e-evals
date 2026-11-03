@@ -42,6 +42,7 @@ globalThis.fetch = async (url, init) => {
     case 'down': return new Response('down', { status: 503 });
     case 'malformed': return ok({ usage: 'lots' });
     case 'cap': return ok({ usage: 11, usage_monthly: 11 });
+    case 'attempt': return ok({ usage: 10.5, usage_monthly: 10.5 });
     case 'month': return ok({ usage: 760, usage_monthly: 760 });
     case 'throws': throw new Error('boom ' + init.headers.Authorization);
   }
@@ -102,6 +103,13 @@ test('the batch cap stops new attempts', async () => {
   expectStoppedBeforeAnyAttempt(await run('cap'), /batch spend \$1\.00 reached the \$1 cap/);
 });
 
+test('the per-attempt stop stops new attempts when spend between checks is too high', async () => {
+  expectStoppedBeforeAnyAttempt(
+    await run('attempt', ['--attempt-stop', '0.25']),
+    /\$0\.50 was spent since the previous spend check, over the \$0\.25 per-attempt stop/,
+  );
+});
+
 test("David's $750 monthly stop stops new attempts", async () => {
   expectStoppedBeforeAnyAttempt(await run('month'), /monthly spend \$760\.00 reached David's \$750 stop/);
 });
@@ -121,6 +129,7 @@ test.each([
   [['--runs', '0'], /--runs must be a positive integer/],
   [['--concurrency', '1.5'], /--concurrency must be a positive integer/],
   [['--cap', 'abc'], /--cap must be a non-negative number/],
+  [['--attempt-stop', '0'], /--attempt-stop must be a positive number/],
 ])('rejects invalid input %j', async (args, message) => {
   const result = await run('cap', args);
   expect('error' in result ? result.error : 'ran').toMatch(message);

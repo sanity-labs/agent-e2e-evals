@@ -7,8 +7,11 @@ import { baseSetup } from './base-setup.ts';
  */
 export const SKILLS_REF = process.env.SANITY_SKILLS_BRANCH?.trim() || '3ed3a143f8d3413faa7790ac0b2274fd3a8a6320';
 
-/** "Added installed guidance": installs Sanity's best-practices skill for the given agent before it starts. */
-export function createSanitySkillsSetup(agent: string): SetupFunction {
+/**
+ * "Added installed guidance": installs one Sanity skill (best practices by default) for the given agent
+ * before it starts. The experiment file name says which skill a cell installs.
+ */
+export function createSanitySkillsSetup(agent: string, skill = 'sanity-best-practices'): SetupFunction {
   return async (sandbox) => {
     await baseSetup(sandbox);
 
@@ -22,12 +25,12 @@ export function createSanitySkillsSetup(agent: string): SetupFunction {
       '--agent',
       agent,
       '--skill',
-      'sanity-best-practices',
+      skill,
       '--yes',
     ]);
 
     if (result.exitCode !== 0) {
-      throw new Error(`Failed to install Sanity skills from ${source}: ${result.stderr || result.stdout}`);
+      throw new Error(`Failed to install Sanity skill ${skill} from ${source}: ${result.stderr || result.stdout}`);
     }
   };
 }

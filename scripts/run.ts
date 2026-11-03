@@ -27,12 +27,13 @@ const { values, positionals } = parseArgs({
     runs: { type: 'string', default: '1' },
     concurrency: { type: 'string', default: '1' },
     cap: { type: 'string', default: '2' },
+    'attempt-stop': { type: 'string' },
   },
   allowPositionals: true,
 });
 
 const usage =
-  'Usage: node scripts/run.ts --key-file F --evals a,b [--runs N] [--concurrency N] [--cap USD] experiments/x.ts ...';
+  'Usage: node scripts/run.ts --key-file F --evals a,b [--runs N] [--concurrency N] [--cap USD] [--attempt-stop USD] experiments/x.ts ...';
 const positiveInt = (name: string, raw: string) => {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1) throw new Error(`--${name} must be a positive integer. ${usage}`);
@@ -44,6 +45,13 @@ const runs = positiveInt('runs', values.runs);
 const concurrency = positiveInt('concurrency', values.concurrency);
 const capUsd = Number(values.cap);
 if (!Number.isFinite(capUsd) || capUsd < 0) throw new Error(`--cap must be a non-negative number of USD. ${usage}`);
+/**
+ * Optional: stop starting attempts once the key spent more than this between two spend checks. With
+ * --concurrency 1 that is the cost of the attempt that just finished (retries included).
+ */
+const attemptStopUsd = values['attempt-stop'] === undefined ? null : Number(values['attempt-stop']);
+if (attemptStopUsd !== null && (!Number.isFinite(attemptStopUsd) || attemptStopUsd <= 0))
+  throw new Error(`--attempt-stop must be a positive number of USD. ${usage}`);
 
 /** David's line: stop and tell him once this month's OpenRouter spend reaches $750. */
 const MONTHLY_STOP_USD = 750;
@@ -124,6 +132,7 @@ const manifest = {
   runsPerEval: runs,
   concurrency,
   capUsd,
+  attemptStopUsd,
   monthlyStopUsd: MONTHLY_STOP_USD,
   experiments: [] as Array<{ name: string; agent: string; model: string; timeout: number; sandbox: string }>,
   attempts: [] as Attempt[],
@@ -141,6 +150,8 @@ const manifest = {
   endedAt: '',
 };
 const saveManifest = () => writeJson('manifest.json', manifest);
+/** Key usage at the previous spend check, for --attempt-stop. */
+let previousUsage = start.total;
 /** Decides whether another attempt may start. Any failure to check spend stops the batch. */
 async function spendStop(attempt: Attempt): Promise<string | null> {
   if (manifest.stopped) return manifest.stopped;
@@ -152,7 +163,10 @@ async function spendStop(attempt: Attempt): Promise<string | null> {
       manifest.stopped = `monthly spend $${now.month.toFixed(2)} reached David's $${MONTHLY_STOP_USD} stop: tell him before running more`;
     } else if (spent >= capUsd) {
       manifest.stopped = `batch spend $${spent.toFixed(2)} reached the $${capUsd} cap`;
+    } else if (attemptStopUsd !== null && now.total - previousUsage > attemptStopUsd) {
+      manifest.stopped = `$${(now.total - previousUsage).toFixed(2)} was spent since the previous spend check, over the $${attemptStopUsd} per-attempt stop: report before running more`;
     }
+    previousUsage = now.total;
   } catch (err) {
     manifest.stopped = `spend check failed, so no more attempts were started: ${errorText(err)}`;
   }
@@ -167,6 +181,8 @@ const STARTER = { protectedPaths: ['package.json', 'build.mjs'], copyFiles: 'cha
 const FUNCTION = { copyFiles: 'changed' as const };
 // The migration grader typechecks with the shipped tsconfig.json, so the agent must not change it.
 const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
+// The upgrade task changes package.json on purpose, so only tsconfig.json is protected (the grader typechecks with it).
+const UPGRADE = MIGRATION;
 
 const jobs: Array<() => Promise<void>> = [];
 for (const configPath of positionals) {
@@ -204,7 +220,13 @@ for (const configPath of positionals) {
               runs: 1,
               evals: evalName,
               ...(evalName === 'sanity-nextjs-starter' ? STARTER : {}),
-              ...(evalName === 'sanity-blueprints' ? FUNCTION : evalName === 'sanity-migration' ? MIGRATION : {}),
+              ...(evalName === 'sanity-blueprints'
+                ? FUNCTION
+                : evalName === 'sanity-migration'
+                  ? MIGRATION
+                  : evalName === 'sanity-studio-upgrade'
+                    ? UPGRADE
+                    : {}),
               onRunComplete: async (context) => {
                 const runData = (await config.onRunComplete?.(context)) ?? context.runData;
                 const { status, duration, error, usage: tokens } = runData.result;

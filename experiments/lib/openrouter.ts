@@ -20,7 +20,8 @@ import { createSanitySkillsSetup } from './sanity-skills-setup.ts';
  */
 const KEY_PLACEHOLDER = '{env:AI_GATEWAY_API_KEY}';
 
-export function openRouterExperiment(options: { model: string; skills?: boolean }): ExperimentConfig {
+/** `skills` installs Sanity's best-practices skill; `skill` names a different agent-toolkit skill instead. */
+export function openRouterExperiment(options: { model: string; skills?: boolean; skill?: string }): ExperimentConfig {
   return {
     agent: 'vercel-ai-gateway/opencode',
     model: `openrouter/${options.model}`,
@@ -39,7 +40,11 @@ export function openRouterExperiment(options: { model: string; skills?: boolean 
     sandbox: 'docker',
     agentEnv: sanityEvalEnv,
     evals: nonMcpEvals,
-    setup: options.skills ? createSanitySkillsSetup('opencode') : baseSetup,
+    setup: options.skill
+      ? createSanitySkillsSetup('opencode', options.skill)
+      : options.skills
+        ? createSanitySkillsSetup('opencode')
+        : baseSetup,
     onRunComplete: redactSecrets,
   };
 }
