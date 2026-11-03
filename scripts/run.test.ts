@@ -73,7 +73,7 @@ async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<stri
       projectFiles,
       manifest: JSON.parse(raw) as {
         stopped: string | null;
-        attempts: Array<{ skipped?: string }>;
+        attempts: Array<{ skipped?: string; experiment: string; run: number }>;
         stagingProjectsNewlyObserved: Array<{ id: string }> | null;
       },
     };
@@ -108,6 +108,18 @@ test('the per-attempt stop stops new attempts when spend between checks is too h
     await run('attempt', ['--attempt-stop', '0.25']),
     /\$0\.50 was spent since the previous spend check, over the \$0\.25 per-attempt stop/,
   );
+});
+
+test('paired experiments alternate round by round instead of running as two blocks', async () => {
+  const result = await run('cap', ['experiments/claude-haiku-5.5-skills.ts']);
+  if (!('manifest' in result) || !result.manifest)
+    throw new Error(`run failed: ${'error' in result ? result.error : ''}`);
+  expect(result.manifest.attempts.map((a) => `${a.experiment}#${a.run}`)).toEqual([
+    'claude-haiku-5.5-skills#1',
+    'claude-haiku-5.5#1',
+    'claude-haiku-5.5#2',
+    'claude-haiku-5.5-skills#2',
+  ]);
 });
 
 test("David's $750 monthly stop stops new attempts", async () => {

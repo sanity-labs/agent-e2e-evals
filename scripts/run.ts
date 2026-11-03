@@ -184,7 +184,7 @@ const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
 // The upgrade task changes package.json on purpose, so only tsconfig.json is protected (the grader typechecks with it).
 const UPGRADE = MIGRATION;
 
-const jobs: Array<() => Promise<void>> = [];
+const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
   const config = await loadConfig(resolve(configPath));
   const experiment = basename(configPath, '.ts');
@@ -196,10 +196,23 @@ for (const configPath of positionals) {
     timeout: config.timeout,
     sandbox: config.sandbox,
   });
-  for (const evalName of evalNames) {
-    const fixture = fixtures.find((f) => f.name === evalName);
-    if (!fixture) throw new Error(`Unknown eval: ${evalName}`);
-    for (let run = 1; run <= runs; run++) {
+  loaded.push({ config, experiment, model });
+}
+const fixtureFor = (evalName: string) => {
+  const fixture = fixtures.find((f) => f.name === evalName);
+  if (!fixture) throw new Error(`Unknown eval: ${evalName}`);
+  return fixture;
+};
+for (const evalName of evalNames) fixtureFor(evalName);
+
+// Attempts are queued round by round (every experiment's run 1, then every run 2, ...), with the
+// experiment order reversed on even rounds. Paired arms, such as with and without a skill, then
+// alternate instead of running as two blocks, so drift during a batch falls on both arms alike.
+const jobs: Array<() => Promise<void>> = [];
+for (let run = 1; run <= runs; run++) {
+  for (const { config, experiment, model } of run % 2 === 1 ? loaded : [...loaded].reverse()) {
+    for (const evalName of evalNames) {
+      const fixture = fixtureFor(evalName);
       jobs.push(async () => {
         const attempt: Attempt = { experiment, eval: evalName, run, invocations: [] };
         manifest.attempts.push(attempt);
