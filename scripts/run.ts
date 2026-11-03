@@ -205,9 +205,7 @@ const fixtureFor = (evalName: string) => {
 };
 for (const evalName of evalNames) fixtureFor(evalName);
 
-// Attempts are queued round by round (every experiment's run 1, then every run 2, ...), with the
-// experiment order reversed on even rounds. Paired arms, such as with and without a skill, then
-// alternate instead of running as two blocks, so drift during a batch falls on both arms alike.
+// Queue attempts round by round, reversing experiment order on even rounds, so paired arms alternate (A B B A ...).
 const jobs: Array<() => Promise<void>> = [];
 for (let run = 1; run <= runs; run++) {
   for (const { config, experiment, model } of run % 2 === 1 ? loaded : [...loaded].reverse()) {
