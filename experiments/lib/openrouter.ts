@@ -20,6 +20,18 @@ import { createSanitySkillsSetup } from './sanity-skills-setup.ts';
  */
 const KEY_PLACEHOLDER = '{env:AI_GATEWAY_API_KEY}';
 
+/**
+ * OpenCode config merged on top of the generated opencode.json (OpenCode reads
+ * OPENCODE_CONFIG_CONTENT as local config). Snapshots off: with them on, OpenCode
+ * diffs the whole tree from the session start after every step, in-process. Once
+ * an agent reinstalls dependencies (~12k changed package-lock.json lines in the
+ * Studio upgrade) that costs ~85 s of CPU per step and attempts hit the timeout.
+ * The prompt and grader are unchanged and grading uses agent-eval's own changed-file
+ * record, but OpenCode's behaviour isn't proven identical either way, so results are
+ * labelled with this setting. Evidence: evals/upgrade/receipts.
+ */
+const OPENCODE_CONFIG_CONTENT = JSON.stringify({ snapshot: false });
+
 /** `skills` installs Sanity's best-practices skill; `skill` names a different agent-toolkit skill instead. */
 export function openRouterExperiment(options: { model: string; skills?: boolean; skill?: string }): ExperimentConfig {
   return {
@@ -38,7 +50,7 @@ export function openRouterExperiment(options: { model: string; skills?: boolean;
     verifier: 'separate',
     timeout: 1800,
     sandbox: 'docker',
-    agentEnv: sanityEvalEnv,
+    agentEnv: { ...sanityEvalEnv, OPENCODE_CONFIG_CONTENT },
     evals: nonMcpEvals,
     setup: options.skill
       ? createSanitySkillsSetup('opencode', options.skill)

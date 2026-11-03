@@ -31,3 +31,11 @@ test.each([false, true])('opencode.json never holds the literal key (skills=%s)'
 test('without the override the runner would write the key (guards the test itself)', () => {
   expect(generateOpenCodeConfig({}, FAKE_KEY, 1_800_000)).toContain(FAKE_KEY);
 });
+
+test.each([false, true])('OpenCode runs with snapshots off (skills=%s)', (skills) => {
+  const config = openRouterExperiment({ model: 'anthropic/claude-haiku-5.5', skills });
+  const env = config.agentEnv as Record<string, string>;
+  expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT ?? '')).toEqual({ snapshot: false });
+  // The Sanity staging variables are still passed through.
+  expect(env.SANITY_INTERNAL_ENV).toBe('staging');
+});
