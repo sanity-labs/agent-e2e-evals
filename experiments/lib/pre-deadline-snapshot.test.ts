@@ -114,6 +114,7 @@ test.each([
   ['malformed JSON', { stdout: 'Exporting session\n{"info":' }],
   ['an empty failed export', { stdout: '', exitCode: 1 }],
   ['an export over the size cap', { stdout: '', overCap: true }],
+  ['a cut-off export', { stdout: exported(session()).slice(0, 40) }],
 ])('does not keep an export of %s; the files are still kept, as partial', async (_name, reply) => {
   const { sandbox } = fakeSandbox({ ...ok, export: reply });
   const rec = await snap(sandbox);
@@ -203,6 +204,15 @@ test('the capped runner keeps output only when the command succeeds within the c
   expect(run(100, 'echo hello; echo noise >&2')).toEqual({ ok: true, text: 'hello\n' });
   expect(run(100, 'head -c 101 /dev/zero')).toEqual({ ok: false, reason: 'output over cap' });
   expect(run(100, 'echo partial; exit 1')).toEqual({ ok: false, reason: 'exited 1' });
+  // stdout must be a regular file, not a pipe or socket: OpenCode 1.19.5 cuts its export short there
+  // and exits 0. Node's spawnSync 'pipe' is a socket, so test for a regular file, not for a FIFO.
+  expect(
+    run(400000, 'if [ -f /dev/stdout ]; then yes a | head -c 300000; else yes a | head -c 1000; fi').text,
+  ).toHaveLength(300000);
+  // Over the cap ends the command through the file-size limit (whole 512-byte blocks, so at most cap+512 bytes on disk).
+  expect(run(1000, 'head -c 50000000 /dev/zero; echo done-after')).toEqual({ ok: false, reason: 'output over cap' });
+  expect(run(1024, 'head -c 1024 /dev/zero').text).toHaveLength(1024);
+  expect(run(1024, 'head -c 1025 /dev/zero')).toEqual({ ok: false, reason: 'output over cap' });
   expect(run(100, 'head -c 5000000 /dev/zero >&2; echo ok')).toEqual({ ok: true, text: 'ok\n' });
   // Under the raw cap but heavily escaped in JSON: still one whole, parseable envelope.
   const quoted = run(4000, 'head -c 3000 /dev/zero | tr "\\000" "\\""');

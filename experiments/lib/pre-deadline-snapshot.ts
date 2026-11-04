@@ -28,16 +28,28 @@ const LIVE_SCRIPT = `const fs=require('fs');let n=0;for(const p of fs.readdirSyn
 /**
  * Runs a command in the sandbox with stdout capped there (stderr discarded), so the host never buffers
  * more than the cap. Prints { ok:true, text } or { ok:false, reason }; over the cap counts as a failure.
+ * stdout goes to a fresh private temp file, not a pipe: OpenCode 1.19.5 exits 0 with its export cut
+ * off at 128-384 KiB when stdout is a pipe, and whole when it is a file.
+ * The file is bounded by the child's file-size limit (ulimit -f, 512-byte blocks), so going over the
+ * cap ends the command (SIGXFSZ) instead of filling the disk; the limit also covers any other file the
+ * command writes, which then fails safe as over the cap. The limit rounds up to whole blocks, so up to
+ * cap+512 bytes can reach the disk. The temp dir is removed when this script returns or throws; if the
+ * script itself is killed (for example SIGKILL), the dir stays in the sandbox's temp directory.
  * Args: cap cwd command...
  */
-export const CAPPED_SCRIPT = `const [cap,cwd,cmd,...args]=process.argv.slice(1);const out=(o)=>process.stdout.write(JSON.stringify(o));
-const r=require('child_process').spawnSync(cmd,args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:+cap});
-if(r.error)out({ok:false,reason:r.error.code==='ENOBUFS'?'output over cap':'did not run'});
-else if(r.status!==0)out({ok:false,reason:'exited '+r.status});else out({ok:true,text:r.stdout});`;
+export const CAPPED_SCRIPT = `const [cap,cwd,cmd,...args]=process.argv.slice(1);const fs=require('fs'),os=require('os'),path=require('path');
+const out=(o)=>process.stdout.write(JSON.stringify(o));const d=fs.mkdtempSync(path.join(os.tmpdir(),'snap-'));const f=path.join(d,'out');let fd;
+try{fd=fs.openSync(f,'wx',0o600);const blocks=String(Math.ceil((+cap+1)/512));
+const r=require('child_process').spawnSync('/bin/sh',['-c','ulimit -f "$0" && exec "$@"',blocks,cmd,...args],{cwd,stdio:['ignore',fd,'ignore']});
+fs.closeSync(fd);fd=undefined;const size=fs.statSync(f).size;
+if(r.error)out({ok:false,reason:'did not run'});else if(r.signal==='SIGXFSZ'||size>+cap)out({ok:false,reason:'output over cap'});
+else if(r.status!==0)out({ok:false,reason:'exited '+r.status});else out({ok:true,text:fs.readFileSync(f,'utf8')});
+}finally{if(fd!==undefined)fs.closeSync(fd);fs.rmSync(d,{recursive:true,force:true});}`;
 
 /** The export is kept only if it parses and names the selected session, the workspace and no parent. */
 function checkExport(text: string, id: string, cwd: string): string | undefined {
   const j = parseJson(text, '{');
+  if (j === undefined) return `export not valid JSON (${Buffer.byteLength(text)} bytes)`;
   const i = j?.info;
   if (!i || i.id !== id || i.directory !== cwd || 'parentID' in i)
     return 'export does not match the selected root session';
