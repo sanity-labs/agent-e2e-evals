@@ -136,6 +136,16 @@ test.each([
   expect(rec?.session?.id).toBe('ses_abc123');
 });
 
+test('a valid export under the raw cap is kept even when JSON escaping makes its envelope larger', async () => {
+  // 3 MB of quotes is under the 4 MB raw cap but about 6 MB once escaped inside the helper's envelope.
+  const big = `Exporting session\n${JSON.stringify({ info: session(), messages: ['"'.repeat(3 * 1024 * 1024)] })}`;
+  const { sandbox } = fakeSandbox({ ...ok, export: { stdout: big } });
+  const rec = await snap(sandbox, { waitMs: 600 });
+  expect(rec?.errors).toEqual([]);
+  expect(rec?.status).toBe('captured');
+  expect(rec?.session?.export.length).toBeGreaterThan(3 * 1024 * 1024);
+});
+
 test('a hung command ends at the capture deadline, keeping what was read', async () => {
   const { sandbox } = fakeSandbox({ ...ok, files: 'hang' });
   const rec = await snap(sandbox, { budgetMs: 1500, waitMs: 1800 });
