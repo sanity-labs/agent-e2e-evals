@@ -1,8 +1,9 @@
 /**
- * Offline grader for sanity-schema, task version 1 (design: research/schema-task-v1-design.md rev2 plus critic's GO-v2).
+ * Offline grader for sanity-schema, task version 1 (design: research/schema-task-v1-design.md rev2).
  * Loads the schema the Studio actually uses (sanity.config.ts through jiti, as the upgrade grader does), compiles it
- * with Studio's own createSchema, checks the names the frontend reads, then validates hidden twin documents with
- * Sanity's own validateDocument. A rule passes when its valid twin has no error and every invalid twin is flagged.
+ * with Studio's own createSchema, checks the names and kinds of the fields the frontend reads, then validates hidden
+ * twin documents with Sanity's own validation in Studio mode, as editors see it. A rule passes when its valid twin has
+ * no error and every invalid twin has an error (for the duplicate slug, a warning the valid page does not get also counts).
  * The client given to validation answers GROQ from a local corpus; anything else it is asked for is recorded.
  * A message starting "UNKNOWN (" means the grader could not observe the attempt, not that the agent failed.
  * A pass means content is validated before publishing in this offline check; drafts still save, and the Studio UI is not run.
@@ -85,11 +86,12 @@ const CONTROLS: Record<string, Obj[]> = {
   ],
   'a hero without an image is fine': [page((d) => delete section(d, 'h').image)],
 };
+/** Names the frontend reads, with the kind each must be. Scalars match by JSON type; others by the type chain. */
 const SHAPE = {
-  page: ['title', 'slug', 'showInNav', 'navLabel', 'sections'],
-  hero: ['heading', 'image'],
-  richText: ['body'],
-  postList: ['posts'],
+  page: { title: 'string', slug: 'slug', showInNav: 'boolean', navLabel: 'string', sections: 'array' },
+  hero: { heading: 'string', image: 'image' },
+  richText: { body: 'array' },
+  postList: { posts: 'array' },
 };
 
 // Runs in its own Node process inside the project, so bare imports resolve from its node_modules.
@@ -98,9 +100,10 @@ import {evaluate, parse} from 'groq-js'
 const [inPath, outPath] = process.argv.slice(2)
 const done = (o) => { writeFileSync(outPath, JSON.stringify(o)); process.exit(0) }
 const {corpus, base, rules, controls, shape} = JSON.parse(readFileSync(inPath, 'utf8'))
-let createJiti, sanity, validateDocument
-// sanity re-exports the older workspace-based validateDocument; @sanity/validation has the {document, schema, client} form.
-try { ;({createJiti} = await import('jiti')); sanity = await import('sanity'); ({validateDocument} = await import('@sanity/validation')) }
+let createJiti, sanity, evaluateDocumentInternal
+// Studio-mode validation. The public validateDocument runs in CLI mode, which turns custom object- and document-level
+// rules into warnings even when they say .error(); evaluateDocumentInternal is what it calls, with the mode fixed.
+try { ;({createJiti} = await import('jiti')); sanity = await import('sanity'); ({evaluateDocumentInternal} = await import('@sanity/validation/_internal')) }
 catch (e) { done({status: 'unknown', reason: 'the grader could not load jiti, sanity or @sanity/validation: ' + e.message}) }
 let types
 try {
@@ -117,19 +120,25 @@ const schemaErrors = (schema._validation ?? []).flatMap((g) => g.problems.filter
   .map((p) => g.path.map((s) => s.name ?? s.type).filter(Boolean).join('.') + ': ' + p.message))
 const missing = []
 const pageType = schema.get('page')
-const fieldsOf = (t) => (t?.fields ?? []).map((f) => f.name)
+const isKind = (t, k) => { for (let x = t; x; x = x.type) if (x.name === k) return true; return ['string', 'boolean', 'array'].includes(k) && t?.jsonType === k }
+const fieldType = (t, name) => t?.fields?.find((f) => f.name === name)?.type
+const need = (owner, t, kinds) => { for (const [f, k] of Object.entries(kinds)) { const ft = fieldType(t, f); if (!ft) missing.push(owner + '.' + f); else if (!isKind(ft, k)) missing.push(owner + '.' + f + ' as ' + k) } }
 if (!pageType) missing.push('document type page')
-for (const f of shape.page) if (pageType && !fieldsOf(pageType).includes(f)) missing.push('page.' + f)
-const sectionsType = pageType?.fields?.find((f) => f.name === 'sections')?.type
+else { if (!isKind(pageType, 'document')) missing.push('page as a document type'); need('page', pageType, shape.page) }
+const sectionsType = fieldType(pageType, 'sections')
 const member = (name) => (sectionsType?.of ?? []).find((t) => t.name === name)
 for (const name of ['hero', 'richText', 'postList']) {
   const t = member(name)
   if (!t) { if (pageType) missing.push('sections block ' + name); continue }
-  for (const f of shape[name]) if (!fieldsOf(t).includes(f)) missing.push(name + '.' + f)
+  if (!isKind(t, 'object')) missing.push(name + ' as an object')
+  need(name, t, shape[name])
 }
-const image = member('hero')?.fields?.find((f) => f.name === 'image')?.type
-if (image && !fieldsOf(image).includes('alt')) missing.push('hero.image.alt')
+const image = fieldType(member('hero'), 'image')
+if (image && isKind(image, 'image')) { const alt = fieldType(image, 'alt'); if (!alt) missing.push('hero.image.alt'); else if (!isKind(alt, 'string')) missing.push('hero.image.alt as string') }
+const body = fieldType(member('richText'), 'body')
+if (body && isKind(body, 'array') && !(body.of ?? []).some((m) => isKind(m, 'block'))) missing.push('richText.body as rich text blocks')
 const posts = member('postList')?.fields?.find((f) => f.name === 'posts')?.type
+if (posts && isKind(posts, 'array') && !(posts.of ?? []).every((m) => isKind(m, 'reference'))) missing.push('postList.posts as references')
 const postTargets = (posts?.of ?? []).map((m) => (m.to ? m.to.map((t) => t.name) : [m.name]))
 if (schemaErrors.length || missing.length) done({status: 'ok', schemaErrors, missing, postTargets})
 const unsupported = []
@@ -145,7 +154,8 @@ const client = (dataset) => {
 }
 const check = async (doc) => {
   const dataset = [...corpus, doc]
-  const r = await validateDocument({document: doc, schema, client: client(dataset),
+  const r = await evaluateDocumentInternal({document: doc, schema, environment: 'studio',
+    getClient: ({apiVersion}) => client(dataset).withConfig({apiVersion}),
     getDocumentExists: async ({id}) => dataset.some((d) => d._id === id)})
   return {complete: r.complete, markers: r.markers.map((m) => ({level: m.level, code: m.code,
     path: m.path.map((p) => (typeof p === 'object' ? p._key : p)).join('.'), message: String(m.message ?? m.item?.message).slice(0, 120)}))}
@@ -209,8 +219,13 @@ beforeAll(() => {
 }, 900_000);
 
 const errors = (c: Obj) => (c?.markers ?? []).filter((m: Obj) => m.level === 'error');
-const flagged = (c: Obj, slug: boolean) =>
-  errors(c).length > 0 || (slug && c.markers.some((m: Obj) => m.code === 'slug.not-unique'));
+const markerKey = (m: Obj) => [m.level, m.code, m.path, m.message].join('|');
+/** The prompt allows a warning for a duplicate slug: any warning the valid page does not also get counts. */
+const newWarning = (c: Obj) => {
+  const onValid = new Set((result.base?.markers ?? []).map(markerKey));
+  return (c?.markers ?? []).some((m: Obj) => m.level === 'warning' && !onValid.has(markerKey(m)));
+};
+const flagged = (c: Obj, slug: boolean) => errors(c).length > 0 || (slug && newWarning(c));
 const clean = (c: Obj) =>
   !!c && c.complete && errors(c).length === 0 && !c.markers.some((m: Obj) => m.code === 'slug.not-unique');
 const show = (c: Obj) => JSON.stringify(c?.markers ?? c).slice(0, 400);
