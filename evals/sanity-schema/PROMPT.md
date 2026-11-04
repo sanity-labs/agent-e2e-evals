@@ -15,4 +15,4 @@ Editors should get a validation error before they can publish when:
 
 Editors should also be warned, or stopped, when a page uses a slug that another page already has. A post list may only link to posts.
 
-Example content is in `data/sample.ndjson`. Make sure `tsc --noEmit` passes and `sanity schema extract` works. You don't need to deploy, run the Studio or connect to a dataset.
+Example content is in `data/sample.ndjson`. Make sure `tsc --noEmit` passes and `sanity schema extract` works. Everything you need is installed: don't add or change dependencies, and don't change `tsconfig.json`. You don't need to deploy, run the Studio or connect to a dataset.

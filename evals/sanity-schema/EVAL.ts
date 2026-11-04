@@ -85,6 +85,10 @@ const CONTROLS: Record<string, Obj[]> = {
     page((d) => (delete d.showInNav, delete d.navLabel)),
   ],
   'a hero without an image is fine': [page((d) => delete section(d, 'h').image)],
+  // A draft of an already-published page shares its slug with the published copy; that is not a duplicate.
+  'a draft of a published page keeps its own slug': [
+    page((d) => ((d._id = 'drafts.page-about'), (d.slug.current = 'about'))),
+  ],
 };
 /** Names the frontend reads, with the kind each must be. Scalars match by JSON type; others by the type chain. */
 const SHAPE = {
@@ -110,8 +114,9 @@ try {
   const mod = await createJiti(import.meta.url, {jsx: true, interopDefault: true}).import('./sanity.config.ts')
   const raw = mod && mod.default !== undefined ? mod.default : mod
   const cfg = Array.isArray(raw) ? raw[0] : raw
-  types = typeof cfg?.schema?.types === 'function' ? cfg.schema.types([]) : cfg?.schema?.types
-  if (!Array.isArray(types)) done({status: 'fail', reason: 'sanity.config.ts has no schema.types list'})
+  // Studio's own resolution: schema.types from the config and from every plugin it uses.
+  types = sanity.resolveSchemaTypes({config: cfg, context: {projectId: cfg?.projectId, dataset: cfg?.dataset}})
+  if (!Array.isArray(types)) done({status: 'fail', reason: 'sanity.config.ts gives no schema types'})
 } catch (e) { done({status: 'fail', reason: 'sanity.config.ts could not be loaded: ' + (e && e.message)}) }
 let schema
 try { schema = sanity.createSchema({name: 'default', types}) }
