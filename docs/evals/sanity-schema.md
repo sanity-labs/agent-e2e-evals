@@ -21,5 +21,5 @@ A test message starting `UNKNOWN` means the grader couldn't observe the attempt 
 **Notes for v2 results:**
 
 - A custom slug query that asks for the `drafts` perspective gets UNKNOWN; only raw and published are simulated. Duplicate-slug grading compares warnings within a bound and is not a semantic uniqueness proof.
-- The date twins include an offset time equal to a UTC time. Comparing ISO strings as text fails it. Studio's date-time input always writes UTC, so offset values arrive only through the API, imports or migrations.
+- The date twins include an offset time equal to a UTC time. Comparing ISO strings as text fails it. The standard datetime input serializes new selections to UTC. The task also accepts offset-form values, so its date rules compare instants.
 - v2 attempts took 10 to 30 minutes in the Haiku pilot, so the 30-minute limit is part of what is measured.
