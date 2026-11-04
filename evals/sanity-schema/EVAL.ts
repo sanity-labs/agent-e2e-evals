@@ -226,11 +226,17 @@ beforeAll(() => {
 const errors = (c: Obj) => (c?.markers ?? []).filter((m: Obj) => m.level === 'error');
 const markerKey = (m: Obj) => [m.level, m.code, m.path, m.message].join('|');
 /** The prompt allows a warning for a duplicate slug: any warning the valid page does not also get counts. */
-const newWarning = (c: Obj) => {
+const newWarnings = (c: Obj) => {
   const onValid = new Set((result.base?.markers ?? []).map(markerKey));
-  return (c?.markers ?? []).some((m: Obj) => m.level === 'warning' && !onValid.has(markerKey(m)));
+  return (c?.markers ?? []).filter((m: Obj) => m.level === 'warning' && !onValid.has(markerKey(m))).map(markerKey);
 };
-const flagged = (c: Obj, slug: boolean) => errors(c).length > 0 || (slug && newWarning(c));
+const flagged = (c: Obj, slug: boolean) => errors(c).length > 0 || (slug && newWarnings(c).length > 0);
+/** A draft gets the duplicate twin's own uniqueness warning: the rule mistook the published copy for a duplicate. */
+const DUPLICATE = 'a slug already used by another page is flagged';
+const dupWarning = (c: Obj) => {
+  const dup = new Set((result.rules?.[DUPLICATE] ?? []).flatMap(newWarnings));
+  return newWarnings(c).some((k: string) => dup.has(k));
+};
 const clean = (c: Obj) =>
   !!c && c.complete && errors(c).length === 0 && !c.markers.some((m: Obj) => m.code === 'slug.not-unique');
 const show = (c: Obj) => JSON.stringify(c?.markers ?? c).slice(0, 400);
@@ -268,9 +274,10 @@ test.each(Object.keys(RULES))('%s', (name) => {
   });
 });
 
+const DRAFT = 'a draft of a published page keeps its own slug';
 test.each(Object.keys(CONTROLS))('%s', (name) => {
   schemaReady();
   result.controls[name].forEach((c: Obj, i: number) =>
-    expect(clean(c), `valid control ${i + 1} is rejected: ${show(c)}`).toBe(true),
+    expect(clean(c) && !(name === DRAFT && dupWarning(c)), `valid control ${i + 1} is rejected: ${show(c)}`).toBe(true),
   );
 });
