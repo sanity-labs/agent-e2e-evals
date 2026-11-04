@@ -15,35 +15,70 @@ import type { Sandbox, SetupFunction } from '@vercel/agent-eval';
 const LEAD_MS = 60_000; // snapshot this long before the deadline
 const BUDGET_MS = 45_000; // whole capture, every command included
 const EXPORT_CAP = 4 * 1024 * 1024;
-const NODE = '/usr/local/bin/node'; // absolute: the agent can write to the npm global bin dir on PATH
+const LIST_CAP = 1024 * 1024;
+// The agent runs as the image's non-root user and can write to the npm bin dir at the front of PATH,
+// so our helpers are called by root-owned absolute paths. OpenCode itself lives in that writable dir
+// (we call the same one the agent runs), so everything it prints is untrusted.
+const NODE = '/usr/local/bin/node';
+const TIMEOUT = '/usr/bin/timeout';
 
 /** Counts live `opencode run` processes by reading /proc (the image has no ps). */
 const LIVE_SCRIPT = `const fs=require('fs');let n=0;for(const p of fs.readdirSync('/proc')){if(!/^\\d+$/.test(p))continue;let a;try{a=fs.readFileSync('/proc/'+p+'/cmdline','utf8').split('\\0')}catch{continue}if(a.some((x,i)=>i<2&&/(^|\\/)opencode(\\.exe)?$/.test(x)&&a[i+1]==='run'))n++}process.stdout.write(String(n))`;
 
 /**
+ * Runs a command in the sandbox with stdout capped there (stderr discarded), so the host never buffers
+ * more than the cap. Prints { ok:true, text } or { ok:false, reason }; over the cap counts as a failure.
+ * Args: cap cwd command...
+ */
+export const CAPPED_SCRIPT = `const [cap,cwd,cmd,...args]=process.argv.slice(1);const out=(o)=>process.stdout.write(JSON.stringify(o));
+const r=require('child_process').spawnSync(cmd,args,{cwd,encoding:'utf8',stdio:['ignore','pipe','ignore'],maxBuffer:+cap});
+if(r.error)out({ok:false,reason:r.error.code==='ENOBUFS'?'output over cap':'did not run'});
+else if(r.status!==0)out({ok:false,reason:'exited '+r.status});else out({ok:true,text:r.stdout});`;
+
+/** The export is kept only if it parses and names the selected session, the workspace and no parent. */
+function checkExport(text: string, id: string, cwd: string): string | undefined {
+  const j = parseJson(text, '{');
+  const i = j?.info;
+  if (!i || i.id !== id || i.directory !== cwd || 'parentID' in i)
+    return 'export does not match the selected root session';
+  return undefined;
+}
+
+/**
  * Changed files from git status, read with no symlinks anywhere in the path (realpath must equal
  * the plain path, final open with O_NOFOLLOW, same inode after open), each and all bytes capped
- * while reading. Env files and anything under .git are never read. Args: root perFile total maxFiles.
+ * while reading. Nothing under .git, node_modules, __agent_eval__ or any .env* name is read, whatever
+ * .gitignore says, and binary files (any NUL byte) are skipped rather than encoded, so the caller's
+ * text scrubber sees everything kept; a truncated file is cut back to its last whitespace so no token is
+ * left half-kept. git runs without optional locks (it must not block the agent's own git), with the
+ * agent's fsmonitor hook disabled and the work tree pinned. Args: root perFile total maxFiles.
  */
 export const FILES_SCRIPT = `const fs=require('fs'),path=require('path'),cp=require('child_process');
 const [root,per,total,maxFiles]=[process.argv[1],+process.argv[2],+process.argv[3],+process.argv[4]];
-const out={files:{},deleted:[],skipped:[],truncated:[],bytes:0};const realRoot=fs.realpathSync(root);
-const st=cp.spawnSync('/usr/bin/git',['status','--porcelain','-z','-uall'],{cwd:root,maxBuffer:1<<20});
+const out={files:{},deleted:[],skipped:[],skippedMore:0,truncated:[],bytes:0};const realRoot=fs.realpathSync(root);
+const env={...process.env,GIT_OPTIONAL_LOCKS:'0',GIT_DIR:path.join(root,'.git'),GIT_WORK_TREE:root};
+const st=cp.spawnSync('/usr/bin/git',['-c','core.fsmonitor=','status','--porcelain','-z','-uall'],{cwd:root,env,stdio:['ignore','pipe','ignore'],maxBuffer:64<<20});
 if(st.status!==0){out.error='git status failed';process.stdout.write(JSON.stringify(out));process.exit(0)}
-const t=st.stdout.toString('utf8').split('\\0');let left=total,n=0;
-for(let i=0;i<t.length;i++){const e=t[i];if(e.length<4)continue;const xy=e.slice(0,2),rel=e.slice(3);if(/[RC]/.test(xy))i++;
+const t=st.stdout.toString('utf8').split('\\0'),ents=[];let left=total,n=0;
+for(let i=0;i<t.length;i++){const e=t[i];if(e.length<4)continue;ents.push(e);if(/[RC]/.test(e.slice(0,2)))i++}
+// Tracked changes first, so a large untracked build tree cannot use up the budget before them.
+ents.sort((a,b)=>(a.startsWith('??')?1:0)-(b.startsWith('??')?1:0));
+const skip=(p,reason)=>{if(out.skipped.length<200)out.skipped.push({path:p,reason});else out.skippedMore++};
+for(const e of ents){const xy=e.slice(0,2),rel=e.slice(3);
  const segs=rel.split('/');
- if(rel.startsWith('/')||segs.some(s=>s===''||s==='.'||s==='..'||s==='.git')){out.skipped.push({path:rel,reason:'unsafe path'});continue}
- if(path.basename(rel).startsWith('.env')){out.skipped.push({path:rel,reason:'env file'});continue}
+ if(rel.startsWith('/')||segs.some(s=>s===''||s==='.'||s==='..')){skip(rel,'unsafe path');continue}
+ if(segs.some(s=>s==='.git'||s==='node_modules'||s==='__agent_eval__')){skip(rel,'excluded folder');continue}
+ if(segs.some(s=>s.startsWith('.env'))){skip(rel,'env file');continue}
  if(xy.includes('D')){out.deleted.push(rel);continue}
- if(n>=maxFiles||left<=0){out.skipped.push({path:rel,reason:'budget'});continue}
+ if(n>=maxFiles||left<=0){skip(rel,'budget');continue}
  const p=path.join(realRoot,rel);let fd;
  try{if(fs.realpathSync(p)!==p)throw new Error('symlink in path');const ls=fs.lstatSync(p);if(!ls.isFile())throw new Error('not a regular file');
   fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);const fst=fs.fstatSync(fd);if(fst.ino!==ls.ino||fst.dev!==ls.dev)throw new Error('changed while opening');
   const cap=Math.min(per,left),buf=Buffer.alloc(cap+1);let got=0,r;while(got<cap+1&&(r=fs.readSync(fd,buf,got,cap+1-got,null))>0)got+=r;
-  const keep=buf.subarray(0,Math.min(got,cap));if(got>cap)out.truncated.push(rel);left-=keep.length;out.bytes+=keep.length;n++;
-  const text=keep.includes(0)?null:keep.toString('utf8');out.files[rel]=text===null?{base64:keep.toString('base64')}:{text};
- }catch(err){out.skipped.push({path:rel,reason:String(err.message).slice(0,80)})}finally{if(fd!==undefined)fs.closeSync(fd)}}
+  const keep=buf.subarray(0,Math.min(got,cap));if(keep.includes(0)){skip(rel,'binary');continue}
+  let text=keep.toString('utf8');if(got>cap){out.truncated.push(rel);text=text.slice(0,Math.max(0,text.search(/\\s\\S*$/)))}
+  left-=keep.length;out.bytes+=keep.length;n++;out.files[rel]={text};
+ }catch(err){skip(rel,String(err.message).slice(0,80))}finally{if(fd!==undefined)fs.closeSync(fd)}}
 process.stdout.write(JSON.stringify(out));`;
 
 export interface SnapshotRecord {
@@ -53,13 +88,13 @@ export interface SnapshotRecord {
   deadlineAt: string;
   snapshotAt?: string;
   collectionEndedAt?: string;
-  session?: { id: string; export: string; truncated: boolean };
+  session?: { id: string; export: string };
   files?: unknown;
   errors: string[];
 }
 
 interface Options {
-  /** Wall-clock ms by which the native limit will certainly have fired (or later). */
+  /** Wall-clock ms taken just before runExperiment: earlier than the native expiry (which also counts from later). */
   deadlineAt: number;
   leadMs?: number;
   budgetMs?: number;
@@ -86,7 +121,7 @@ export function createPreDeadlineSnapshot({ deadlineAt, leadMs = LEAD_MS, budget
       if (closed || leftMs < 1000) throw new Error('capture deadline reached');
       let timer: NodeJS.Timeout | undefined;
       const secs = String(Math.max(1, Math.floor(leftMs / 1000) - 1)); // the sandbox kills our helper first
-      const call = sb.runCommand('timeout', ['-s', 'KILL', secs, ...args], { cwd: sb.getWorkingDirectory() });
+      const call = sb.runCommand(TIMEOUT, ['-s', 'KILL', secs, ...args], { cwd: sb.getWorkingDirectory() });
       call.catch(() => {}); // a late rejection after we stop waiting must not go unhandled
       try {
         return await Promise.race([
@@ -103,9 +138,11 @@ export function createPreDeadlineSnapshot({ deadlineAt, leadMs = LEAD_MS, budget
         rec.reason = 'no live opencode run (the agent may have finished, or setup or grading is running)';
         return rec;
       }
-      const list = await run(['opencode', 'session', 'list', '--format', 'json']);
-      const sessions = parseJson(list.stdout, '[');
       const cwd = sb.getWorkingDirectory();
+      const capped = async (cap: number, cmd: string[]) =>
+        parseJson((await run([NODE, '-e', CAPPED_SCRIPT, String(cap), cwd, ...cmd])).stdout.slice(0, cap + 4096), '{');
+      const list = await capped(LIST_CAP, ['opencode', 'session', 'list', '--format', 'json']);
+      const sessions = list?.ok === true && typeof list.text === 'string' ? parseJson(list.text, '[') : undefined;
       const ok = Array.isArray(sessions) ? sessions.filter((s) => s?.directory === cwd && !('parentID' in s)) : [];
       if (
         !Array.isArray(sessions) ||
@@ -120,13 +157,21 @@ export function createPreDeadlineSnapshot({ deadlineAt, leadMs = LEAD_MS, budget
       rec.status = 'partial';
       try {
         // The id is a validated argument, never interpolated into the script.
-        const exp = await run(['sh', '-c', `opencode export "$1" 2>/dev/null | head -c ${EXPORT_CAP + 1}`, 'sh', id]);
-        rec.session = { id, export: exp.stdout.slice(0, EXPORT_CAP), truncated: exp.stdout.length > EXPORT_CAP };
+        // Over the cap is a failure, not a truncated keep: no partial-JSON recovery.
+        const exp = await capped(EXPORT_CAP, ['opencode', 'export', id]);
+        const why =
+          exp?.ok !== true || typeof exp.text !== 'string'
+            ? `export failed: ${typeof exp?.reason === 'string' ? exp.reason.slice(0, 80) : 'unreadable'}`
+            : checkExport(exp.text, id, cwd);
+        if (why) rec.errors.push(why);
+        else rec.session = { id, export: exp.text.slice(exp.text.indexOf('{')) };
       } catch (err) {
         rec.errors.push(`export: ${(err as Error).message}`);
       }
       const files = await run([NODE, '-e', FILES_SCRIPT, cwd, '262144', '2097152', '300']);
-      rec.files = parseJson(files.stdout, '{') ?? { error: 'unreadable file list' };
+      const list2 = parseJson(files.stdout, '{');
+      if (list2 && typeof list2.files === 'object' && !list2.error) rec.files = list2;
+      else rec.errors.push(`file list failed: ${typeof list2?.error === 'string' ? list2.error : 'unreadable'}`);
     } catch (err) {
       rec.errors.push((err as Error).message);
     }

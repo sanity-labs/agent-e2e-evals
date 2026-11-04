@@ -1,18 +1,20 @@
 /**
  * Pre-deadline snapshot: skip rules, caps, the capture deadline and late-write cancellation, with a
- * fake sandbox (no Docker, no model, no network). FILES_SCRIPT runs for real on a temp git repo.
+ * fake sandbox (no Docker, no model, no network). CAPPED_SCRIPT and FILES_SCRIPT run for real.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Sandbox } from '@vercel/agent-eval';
 import { afterAll, expect, test } from 'vitest';
-import { createPreDeadlineSnapshot, FILES_SCRIPT } from './pre-deadline-snapshot.ts';
+import { CAPPED_SCRIPT, createPreDeadlineSnapshot, FILES_SCRIPT } from './pre-deadline-snapshot.ts';
 
 const CWD = '/home/sandbox/workspace';
-type Reply = { stdout: string; exitCode?: number } | 'hang';
+/** For list and export, stdout is what opencode printed; the fake wraps it as CAPPED_SCRIPT would. */
+type Reply = { stdout: string; exitCode?: number; overCap?: boolean } | 'hang';
 const session = (extra = {}) => ({ id: 'ses_abc123', directory: CWD, ...extra });
+const exported = (info: unknown) => `Exporting session\n${JSON.stringify({ info, messages: [] })}`;
 
 /** Answers by the command behind `timeout -s KILL N`; records every call. */
 function fakeSandbox(replies: { live?: Reply; list?: Reply; export?: Reply; files?: Reply }) {
@@ -22,11 +24,17 @@ function fakeSandbox(replies: { live?: Reply; list?: Reply; export?: Reply; file
     runCommand: async (cmd: string, args: string[] = []) => {
       calls.push([cmd, ...args]);
       const inner = args.slice(3);
-      const kind =
-        inner[0] === 'opencode' ? 'list' : inner[0] === 'sh' ? 'export' : inner[2] === FILES_SCRIPT ? 'files' : 'live';
+      const capped = inner[2] === CAPPED_SCRIPT;
+      const kind = capped ? (inner[6] === 'export' ? 'export' : 'list') : inner[2] === FILES_SCRIPT ? 'files' : 'live';
       const r = replies[kind] ?? { stdout: '' };
       if (r === 'hang') return new Promise<never>(() => {});
-      return { stdout: r.stdout, stderr: '', exitCode: r.exitCode ?? 0 };
+      if (!capped) return { stdout: r.stdout, stderr: '', exitCode: r.exitCode ?? 0 };
+      const wrapped = r.overCap
+        ? { ok: false, reason: 'output over cap' }
+        : r.exitCode
+          ? { ok: false, reason: `exited ${r.exitCode}` }
+          : { ok: true, text: r.stdout };
+      return { stdout: JSON.stringify(wrapped), stderr: '', exitCode: 0 };
     },
   } as unknown as Sandbox;
   return { sandbox, calls };
@@ -47,22 +55,23 @@ async function snap(
 const ok = {
   live: { stdout: '1' },
   list: { stdout: JSON.stringify([session()]) },
-  export: { stdout: 'Exporting session\n{"messages":[]}' },
+  export: { stdout: exported(session()) },
   files: { stdout: '{"files":{"a.ts":{"text":"x"}}}' },
 };
+const isExport = (c: string[]) => c.includes('export');
 
 test('captures the session export and files, labelled as a pre-deadline diagnostic', async () => {
   const { sandbox, calls } = fakeSandbox(ok);
   const rec = await snap(sandbox);
   expect(rec?.status).toBe('captured');
-  expect(rec?.session).toEqual({ id: 'ses_abc123', export: 'Exporting session\n{"messages":[]}', truncated: false });
+  expect(rec?.session).toEqual({ id: 'ses_abc123', export: JSON.stringify({ info: session(), messages: [] }) });
   expect(rec?.files).toEqual({ files: { 'a.ts': { text: 'x' } } });
   expect(rec?.note).toMatch(/never graded/);
   expect(Date.parse(rec!.snapshotAt!)).toBeLessThan(Date.parse(rec!.deadlineAt));
   expect(rec?.collectionEndedAt).toBeDefined();
-  // Every command is bounded inside the sandbox; the session id is an argument, not part of the script.
-  for (const c of calls) expect(c.slice(0, 3)).toEqual(['timeout', '-s', 'KILL']);
-  expect(calls.find((c) => c[4] === 'sh')?.slice(-2)).toEqual(['sh', 'ses_abc123']);
+  // Every command is bounded inside the sandbox by absolute path; the session id is an argument.
+  for (const c of calls) expect(c.slice(0, 3)).toEqual(['/usr/bin/timeout', '-s', 'KILL']);
+  expect(calls.find(isExport)?.slice(-3)).toEqual(['opencode', 'export', 'ses_abc123']);
 });
 
 test.each([
@@ -88,19 +97,42 @@ test.each([
     /exactly one root session/,
   ],
   ['an unreadable list', { ...ok, list: { stdout: 'nope' } }, /unreadable list/],
+  ['a list over the size cap', { ...ok, list: { stdout: '', overCap: true } }, /unreadable list/],
+  ['a failed list', { ...ok, list: { stdout: JSON.stringify([session()]), exitCode: 1 } }, /unreadable list/],
 ])('skips, without exporting, on %s', async (_name, replies, reason) => {
   const { sandbox, calls } = fakeSandbox(replies);
   const rec = await snap(sandbox);
   expect(rec?.status).toBe('skipped');
   expect(rec?.reason).toMatch(reason);
-  expect(calls.some((c) => c[4] === 'sh')).toBe(false);
+  expect(calls.some(isExport)).toBe(false);
 });
 
-test('caps the export size', async () => {
-  const { sandbox } = fakeSandbox({ ...ok, export: { stdout: 'x'.repeat(4 * 1024 * 1024 + 1) } });
-  const rec = await snap(sandbox, { waitMs: 400 });
-  expect(rec?.session?.export.length).toBe(4 * 1024 * 1024);
-  expect(rec?.session?.truncated).toBe(true);
+test.each([
+  ['another directory', { stdout: exported(session({ directory: '/tmp' })) }],
+  ['a child session', { stdout: exported(session({ parentID: 'ses_p' })) }],
+  ['a different session id', { stdout: exported(session({ id: 'ses_other' })) }],
+  ['malformed JSON', { stdout: 'Exporting session\n{"info":' }],
+  ['an empty failed export', { stdout: '', exitCode: 1 }],
+  ['an export over the size cap', { stdout: '', overCap: true }],
+])('does not keep an export of %s; the files are still kept, as partial', async (_name, reply) => {
+  const { sandbox } = fakeSandbox({ ...ok, export: reply });
+  const rec = await snap(sandbox);
+  expect(rec?.session).toBeUndefined();
+  expect(rec?.status).toBe('partial');
+  expect(rec?.errors.join()).toMatch(/export/);
+  expect(rec?.files).toBeDefined();
+});
+
+test.each([
+  ['a failed git status', { stdout: '{"files":{},"error":"git status failed"}' }, /git status failed/],
+  ['unreadable output', { stdout: 'garbage' }, /unreadable/],
+])('a file list from %s is not kept and the record is partial', async (_name, files, reason) => {
+  const { sandbox } = fakeSandbox({ ...ok, files });
+  const rec = await snap(sandbox);
+  expect(rec?.status).toBe('partial');
+  expect(rec?.files).toBeUndefined();
+  expect(rec?.errors.join()).toMatch(reason);
+  expect(rec?.session?.id).toBe('ses_abc123');
 });
 
 test('a hung command ends at the capture deadline, keeping what was read', async () => {
@@ -147,7 +179,20 @@ test('setup still runs inside the wrapper, and its errors still fail the attempt
 const dir = mkdtempSync(join(tmpdir(), 'snap-files-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-test('the file reader skips env files, symlinks and symlinked parents, and caps bytes while reading', () => {
+test('the capped runner keeps output only when the command succeeds within the cap, without stderr', () => {
+  const run = (cap: number, script: string) =>
+    JSON.parse(
+      execFileSync(process.execPath, ['-e', CAPPED_SCRIPT, String(cap), dir, '/bin/sh', '-c', script], {
+        encoding: 'utf8',
+      }),
+    );
+  expect(run(100, 'echo hello; echo noise >&2')).toEqual({ ok: true, text: 'hello\n' });
+  expect(run(100, 'head -c 101 /dev/zero')).toEqual({ ok: false, reason: 'output over cap' });
+  expect(run(100, 'echo partial; exit 1')).toEqual({ ok: false, reason: 'exited 1' });
+  expect(run(100, 'head -c 5000000 /dev/zero >&2; echo ok')).toEqual({ ok: true, text: 'ok\n' });
+});
+
+test('the file reader skips excluded folders, env names, binaries and symlinks, and caps bytes while reading', () => {
   const repo = join(dir, 'repo');
   const outside = join(dir, 'outside');
   mkdirSync(outside);
@@ -157,19 +202,33 @@ test('the file reader skips env files, symlinks and symlinked parents, and caps 
     execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: repo });
   git('init', '-q');
   writeFileSync(join(repo, 'gone.ts'), 'old');
+  writeFileSync(join(repo, 'zz-app.ts'), 'old');
   git('add', '.');
   git('commit', '-qm', 'init');
   rmSync(join(repo, 'gone.ts'));
+  writeFileSync(join(repo, 'zz-app.ts'), 'changed');
   writeFileSync(join(repo, 'small.ts'), 'export const a = 1;\n');
   writeFileSync(join(repo, 'big.ts'), 'b'.repeat(50));
-  writeFileSync(join(repo, 'bin.dat'), Buffer.from([0, 1, 2]));
+  // A key cut by the cap must not survive in part: the cut goes back to the last whitespace.
+  writeFileSync(join(repo, 'cut.ts'), 'const k = sk-or-v1-CUTKEYCUTKEYCUTKEY');
+  // Binary content would bypass the text scrubber if encoded, so it is skipped.
+  writeFileSync(join(repo, 'bin.dat'), Buffer.concat([Buffer.from([0]), Buffer.from('sk-or-v1-BINARYKEY')]));
   writeFileSync(join(repo, '.env'), 'TOKEN=real');
   writeFileSync(join(repo, '.env.local'), 'TOKEN=real');
+  mkdirSync(join(repo, '.env.saved'));
+  writeFileSync(join(repo, '.env.saved', 'config.txt'), 'TOKEN=real');
   symlinkSync(join(outside, 'secret.txt'), join(repo, 'link.txt'));
   symlinkSync(outside, join(repo, 'linkdir'));
   mkdirSync(join(repo, 'sub'));
   writeFileSync(join(repo, 'sub', 'z.ts'), 'z'.repeat(30));
   writeFileSync(join(repo, 'sub', 'name with space.ts'), 'ok');
+  // No .gitignore here: node_modules and the harness folder must still be skipped.
+  mkdirSync(join(repo, 'node_modules', 'pkg'), { recursive: true });
+  writeFileSync(join(repo, 'node_modules', 'pkg', 'index.js'), 'DEPENDENCY');
+  mkdirSync(join(repo, 'web', 'node_modules'), { recursive: true });
+  writeFileSync(join(repo, 'web', 'node_modules', 'x.js'), 'DEPENDENCY');
+  mkdirSync(join(repo, '__agent_eval__'));
+  writeFileSync(join(repo, '__agent_eval__', 'run.mjs'), 'HARNESS');
 
   const run = (per: number, total: number, max = 300) =>
     JSON.parse(
@@ -179,17 +238,44 @@ test('the file reader skips env files, symlinks and symlinked parents, and caps 
     );
   const out = run(20, 1000);
   expect(out.files['small.ts']).toEqual({ text: 'export const a = 1;\n' });
-  expect(out.files['big.ts']).toEqual({ text: 'b'.repeat(20) });
-  expect(out.truncated).toEqual(expect.arrayContaining(['big.ts', 'sub/z.ts']));
-  expect(out.files['bin.dat']).toEqual({ base64: Buffer.from([0, 1, 2]).toString('base64') });
+  expect(out.files['big.ts']).toEqual({ text: '' });
+  expect(out.files['cut.ts']).toEqual({ text: 'const k =' });
+  expect(out.truncated).toEqual(expect.arrayContaining(['big.ts', 'cut.ts', 'sub/z.ts']));
   expect(out.files['sub/name with space.ts']).toEqual({ text: 'ok' });
   expect(out.deleted).toEqual(['gone.ts']);
   const skipped = Object.fromEntries(out.skipped.map((s: { path: string; reason: string }) => [s.path, s.reason]));
+  expect(skipped['bin.dat']).toBe('binary');
   expect(skipped['.env']).toBe('env file');
   expect(skipped['.env.local']).toBe('env file');
+  expect(skipped['.env.saved/config.txt']).toBe('env file');
+  expect(skipped['node_modules/pkg/index.js']).toBe('excluded folder');
+  expect(skipped['web/node_modules/x.js']).toBe('excluded folder');
+  expect(skipped['__agent_eval__/run.mjs']).toBe('excluded folder');
   expect(skipped['link.txt']).toMatch(/symlink|not a regular file/);
-  expect(JSON.stringify(out)).not.toContain('SECRET-OUTSIDE');
-  expect(JSON.stringify(out)).not.toContain('TOKEN=real');
+  const all = JSON.stringify(out);
+  for (const s of ['SECRET-OUTSIDE', 'TOKEN=real', 'BINARYKEY', 'CUTKEY', 'DEPENDENCY', 'HARNESS', 'base64'])
+    expect(all).not.toContain(s);
+
+  // The agent's git config cannot run code or move the work tree during capture.
+  const marker = join(dir, 'fsmonitor-ran');
+  writeFileSync(join(dir, 'hook.sh'), `#!/bin/sh\ntouch ${marker}\n`, { mode: 0o755 });
+  git('config', 'core.fsmonitor', join(dir, 'hook.sh'));
+  git('config', 'core.worktree', '/usr');
+  const hostile = run(20, 1000);
+  expect(existsSync(marker)).toBe(false);
+  expect(hostile.error).toBeUndefined();
+  expect(hostile.files['small.ts']).toEqual({ text: 'export const a = 1;\n' });
+  git('config', '--unset', 'core.fsmonitor');
+  git('config', '--unset', 'core.worktree');
+
+  // A large untracked tree (git status output over 1 MB) must not lose the list or crowd out a tracked change.
+  mkdirSync(join(repo, 'build'));
+  for (let i = 0; i < 12000; i++) writeFileSync(join(repo, 'build', `generated-file-with-a-long-name-${i}.js`), '');
+  const many = run(20, 1000);
+  expect(many.error).toBeUndefined();
+  expect(many.files['zz-app.ts']).toEqual({ text: 'changed' });
+  expect(many.skipped.length + many.skippedMore).toBeGreaterThan(11000);
+  expect(many.skipped.length).toBeLessThanOrEqual(200);
 
   const tight = run(20, 25);
   expect(tight.bytes).toBeLessThanOrEqual(25);
