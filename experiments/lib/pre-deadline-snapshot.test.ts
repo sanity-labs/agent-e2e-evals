@@ -137,8 +137,11 @@ test.each([
 });
 
 test('a valid export under the raw cap is kept even when JSON escaping makes its envelope larger', async () => {
-  // 3 MB of quotes is under the 4 MB raw cap but about 6 MB once escaped inside the helper's envelope.
-  const big = `Exporting session\n${JSON.stringify({ info: session(), messages: ['"'.repeat(3 * 1024 * 1024)] })}`;
+  // 1.5 MiB of quotes: about 3 MiB raw once exported (under the 4 MiB cap), about 6 MiB inside the helper's envelope.
+  const big = `Exporting session\n${JSON.stringify({ info: session(), messages: ['"'.repeat(1.5 * 1024 * 1024)] })}`;
+  const cap = 4 * 1024 * 1024;
+  expect(Buffer.byteLength(big)).toBeLessThanOrEqual(cap);
+  expect(Buffer.byteLength(JSON.stringify({ ok: true, text: big }))).toBeGreaterThan(cap);
   const { sandbox } = fakeSandbox({ ...ok, export: { stdout: big } });
   const rec = await snap(sandbox, { waitMs: 600 });
   expect(rec?.errors).toEqual([]);
