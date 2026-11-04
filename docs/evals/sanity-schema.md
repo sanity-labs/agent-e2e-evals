@@ -6,8 +6,8 @@ Can a coding agent model content in a Sanity Studio so editors get the rules the
 
 - runs `tsc --noEmit` and `sanity schema extract` (`tsconfig.json`, `package.json`, `npm-shrinkwrap.json` and `.npmrc` are protected paths);
 - loads the schema the Studio actually uses through `sanity.config.ts` (jiti) and `sanity.resolveSchemaTypes`, compiles it with `sanity.createSchema`, and checks that every field the frontend reads exists with the right kind, and that `postList.posts` references only `post`;
-- validates hidden pairs of documents for each rule (one valid, one or two invalid) with Sanity's own validation in Studio mode, against a local GROQ corpus. A rule passes when the valid document has no error and each invalid one has an error. For a duplicate slug, a warning the valid page doesn't get also counts;
-- checks three valid controls: no nav label when the page isn't in navigation, a hero without an image, and a draft of a published page keeping its own slug (fails on an error or on the duplicate test's own warning).
+- validates hidden documents with Sanity's own validation in Studio mode, against a local GROQ corpus: one valid page, which must have no error before any rule is checked, and for each of 13 rules one or more invalid variants of it. A rule passes when every invalid variant has an error. For a duplicate slug, a warning the valid page doesn't get also counts;
+- checks eight groups of valid controls, each failing on an error (the slug controls also fail on the duplicate test's own warning): no nav label when the page isn't in navigation; a hero without an image; a draft of a published page keeping its own slug; the same slug in another language; a page without a hero; a post in two lists and a list with different posts; a blank paragraph next to text; a block with one date, or both in order.
 
 A test message starting `UNKNOWN` means the grader couldn't observe the attempt (for example, a validator asked the client for something other than a GROQ fetch), not that the agent failed.
 
