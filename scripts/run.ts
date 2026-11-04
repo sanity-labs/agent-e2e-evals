@@ -16,6 +16,7 @@ import { basename, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createConsoleProgressHandler, loadAllFixtures, loadConfig, runExperiment } from '@vercel/agent-eval';
 import pLimit from 'p-limit';
+import { createPreDeadlineSnapshot } from '../experiments/lib/pre-deadline-snapshot.ts';
 import { scrubSecrets } from '../experiments/lib/redact-secrets.ts';
 import { SKILLS_REF } from '../experiments/lib/sanity-skills-setup.ts';
 import { listStagingProjects, newlyObserved } from './staging-projects.ts';
@@ -91,6 +92,8 @@ interface Attempt {
    */
   openRouterUsageBefore?: number;
   outputDir?: string;
+  /** Set when the attempt reached the pre-deadline snapshot time: a never-graded diagnostic (pre-deadline-snapshot.ts). */
+  timeoutDiagnostic?: { path: string; status: string };
   skipped?: string;
   error?: string;
 }
@@ -223,6 +226,9 @@ for (let run = 1; run <= runs; run++) {
           return;
         }
         const progress = createConsoleProgressHandler({ experimentName: experiment, model, agent: config.agent });
+        const attemptDir = join(resultsDir, experiment, `${evalName}-run-${run}`);
+        // Taken now, before the native timer starts, so the snapshot always comes before the native limit.
+        const snapshot = createPreDeadlineSnapshot({ deadlineAt: Date.now() + config.timeout * 1000 });
         try {
           await runExperiment({
             config: {
@@ -238,7 +244,9 @@ for (let run = 1; run <= runs; run++) {
                   : evalName === 'sanity-studio-upgrade'
                     ? UPGRADE
                     : {}),
+              setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
+                snapshot.invocationEnded();
                 const runData = (await config.onRunComplete?.(context)) ?? context.runData;
                 const { status, duration, error, usage: tokens } = runData.result;
                 attempt.invocations.push({
@@ -252,7 +260,7 @@ for (let run = 1; run <= runs; run++) {
             },
             fixtures: [fixture],
             apiKey,
-            resultsDir: join(resultsDir, experiment, `${evalName}-run-${run}`),
+            resultsDir: attemptDir,
             experimentName: '.',
             onProgress: (event) => {
               if (event.type === 'experiment:saved') attempt.outputDir = relative(resultsDir, event.outputDir);
@@ -261,6 +269,13 @@ for (let run = 1; run <= runs; run++) {
           });
         } catch (err) {
           attempt.error = errorText(err);
+        }
+        const diagnostic = snapshot.finish();
+        if (diagnostic) {
+          const path = join(attemptDir, 'timeout-diagnostic.json');
+          mkdirSync(attemptDir, { recursive: true });
+          writeFileSync(path, `${scrubSecrets(JSON.stringify(diagnostic, null, 2))}\n`);
+          attempt.timeoutDiagnostic = { path: relative(resultsDir, path), status: diagnostic.status };
         }
         saveManifest();
       });
