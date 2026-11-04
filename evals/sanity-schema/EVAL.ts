@@ -91,7 +91,12 @@ const dated = (key: string, from?: string, until?: string) =>
 const RULES: Record<string, Obj[]> = {
   'a page needs a title': [page((d) => delete d.title)],
   'a page needs a slug': [page((d) => delete d.slug)],
-  'a page needs a language, en or nb': [page((d) => delete d.language), page((d) => (d.language = 'de'))],
+  'a page needs a language, en or nb': [
+    page((d) => delete d.language),
+    page((d) => (d.language = 'de')),
+    page((d) => (d.language = 'EN')),
+    page((d) => (d.language = 'en-GB')),
+  ],
   'a slug already used by another page in the same language is flagged': [
     page((d) => (d.slug.current = 'about')),
     page((d) => ((d.language = 'nb'), (d.slug.current = 'om-oss'))),
@@ -114,6 +119,7 @@ const RULES: Record<string, Obj[]> = {
   'a post list needs posts': [page((d) => delete section(d, 'p').posts), page((d) => (section(d, 'p').posts = []))],
   'a post list cannot repeat a post': [
     page((d) => (section(d, 'p').posts = [ref('post-hello', 'r1'), ref('post-hello', 'r2')])),
+    page((d) => (section(d, 'p').posts = [ref('post-hello', 'r1'), ref('post-second', 'r2'), ref('post-hello', 'r3')])),
   ],
   "a block's end must be later than its start": [
     dated('t', START, EARLY),
@@ -152,6 +158,7 @@ const CONTROLS: Record<string, Obj[]> = {
     dated('h', START, LATE),
     dated('t', START, LATE),
     dated('p', START, LATE),
+    dated('t', START, '2026-01-01T14:00:00.000Z'),
   ],
 };
 /** Names the frontend reads, with the kind each must be. Scalars match by JSON type; others by the type chain. */
