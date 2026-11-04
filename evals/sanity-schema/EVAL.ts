@@ -1,5 +1,5 @@
 /**
- * Offline grader for sanity-schema, task version 1 (design: research/schema-task-v1-design.md rev2).
+ * Offline grader for sanity-schema, task version 2 (design: research/schema-task-v2-design.md rev2; v1 is commit 0069140).
  * Loads the schema the Studio actually uses (sanity.config.ts through jiti, as the upgrade grader does), compiles it
  * with Studio's own createSchema, checks the names and kinds of the fields the frontend reads, then validates hidden
  * twin documents with Sanity's own validation in Studio mode, as editors see it. A rule passes when its valid twin has
@@ -14,8 +14,8 @@ import { resolve } from 'node:path';
 import { beforeAll, expect, test } from 'vitest';
 
 type Obj = Record<string, any>;
-const block = (text: string) => ({
-  _key: 'b1',
+const block = (text: string, key = 'b1') => ({
+  _key: key,
   _type: 'block',
   style: 'normal',
   markDefs: [],
@@ -23,11 +23,15 @@ const block = (text: string) => ({
 });
 const ref = (id: string, key = 'r1') => ({ _key: key, _type: 'reference', _ref: id });
 const IMAGE = { _type: 'image', asset: { _type: 'reference', _ref: 'image-abc123-10x10-png' } };
+const EARLY = '2025-12-01T10:00:00.000Z';
+const START = '2026-01-01T10:00:00.000Z';
+const LATE = '2026-02-01T10:00:00.000Z';
 
-/** Other documents in the dataset: referenced post and image, and a page that already has the slug "about". */
+/** Other documents in the dataset: posts, an image, one page per language whose slug a twin reuses, and an unpublished draft. */
 const CORPUS = [
   { _id: 'author-ada', _type: 'author', name: 'Ada Lovelace' },
   { _id: 'post-hello', _type: 'post', title: 'Hello world', slug: { _type: 'slug', current: 'hello-world' } },
+  { _id: 'post-second', _type: 'post', title: 'Second post', slug: { _type: 'slug', current: 'second-post' } },
   {
     _id: 'image-abc123-10x10-png',
     _type: 'sanity.imageAsset',
@@ -39,7 +43,24 @@ const CORPUS = [
     _type: 'page',
     title: 'About',
     slug: { _type: 'slug', current: 'about' },
+    language: 'en',
     sections: [{ _key: 'h', _type: 'hero', heading: 'About us' }],
+  },
+  {
+    _id: 'page-om-oss',
+    _type: 'page',
+    title: 'Om oss',
+    slug: { _type: 'slug', current: 'om-oss' },
+    language: 'nb',
+    sections: [{ _key: 'h', _type: 'hero', heading: 'Om oss' }],
+  },
+  {
+    _id: 'drafts.page-coming-soon',
+    _type: 'page',
+    title: 'Coming soon',
+    slug: { _type: 'slug', current: 'coming-soon' },
+    language: 'en',
+    sections: [{ _key: 'h', _type: 'hero', heading: 'Coming soon' }],
   },
 ];
 /** A page that meets every rule. Each twin below changes only the part its rule is about. */
@@ -48,6 +69,7 @@ const BASE = {
   _type: 'page',
   title: 'Landing',
   slug: { _type: 'slug', current: 'landing' },
+  language: 'en',
   showInNav: true,
   navLabel: 'Landing',
   sections: [
@@ -62,21 +84,42 @@ const page = (edit: (d: Obj) => void) => {
   return d;
 };
 const section = (d: Obj, key: string) => d.sections.find((s: Obj) => s._key === key);
+const dated = (key: string, from?: string, until?: string) =>
+  page((d) => Object.assign(section(d, key), from ? { visibleFrom: from } : {}, until ? { visibleUntil: until } : {}));
 
 /** One entry per editor rule from the prompt: the valid twin is BASE; every invalid twin breaks only that rule. */
 const RULES: Record<string, Obj[]> = {
   'a page needs a title': [page((d) => delete d.title)],
   'a page needs a slug': [page((d) => delete d.slug)],
-  'a slug already used by another page is flagged': [page((d) => (d.slug.current = 'about'))],
+  'a page needs a language, en or nb': [page((d) => delete d.language), page((d) => (d.language = 'de'))],
+  'a slug already used by another page in the same language is flagged': [
+    page((d) => (d.slug.current = 'about')),
+    page((d) => ((d.language = 'nb'), (d.slug.current = 'om-oss'))),
+    page((d) => (d.slug.current = 'coming-soon')),
+  ],
   'a page needs sections': [page((d) => delete d.sections), page((d) => (d.sections = []))],
   'a page in the navigation needs a nav label': [page((d) => delete d.navLabel)],
+  'a page has at most one hero, and it comes first': [
+    page((d) => d.sections.splice(2, 0, { _key: 'h2', _type: 'hero', heading: 'Again' })),
+    page((d) => d.sections.push(d.sections.shift())),
+  ],
   'a hero needs a heading': [page((d) => delete section(d, 'h').heading)],
   'a hero image needs alt text': [page((d) => delete section(d, 'h').image.alt)],
-  'a rich text block needs a body': [
+  'a rich text block needs text': [
     page((d) => delete section(d, 't').body),
     page((d) => (section(d, 't').body = [])),
+    page((d) => (section(d, 't').body = [block('')])),
+    page((d) => (section(d, 't').body = [block(' \t\n ')])),
   ],
   'a post list needs posts': [page((d) => delete section(d, 'p').posts), page((d) => (section(d, 'p').posts = []))],
+  'a post list cannot repeat a post': [
+    page((d) => (section(d, 'p').posts = [ref('post-hello', 'r1'), ref('post-hello', 'r2')])),
+  ],
+  "a block's end must be later than its start": [
+    dated('t', START, EARLY),
+    dated('h', START, START),
+    dated('p', LATE, START),
+  ],
 };
 /** Valid pages that an over-strict schema would reject. */
 const CONTROLS: Record<string, Obj[]> = {
@@ -89,13 +132,41 @@ const CONTROLS: Record<string, Obj[]> = {
   'a draft of a published page keeps its own slug': [
     page((d) => ((d._id = 'drafts.page-about'), (d.slug.current = 'about'))),
   ],
+  'the same slug in another language is fine': [
+    page((d) => ((d.language = 'nb'), (d.slug.current = 'about'))),
+    page((d) => (d.slug.current = 'om-oss')),
+    page((d) => ((d.language = 'nb'), (d.slug.current = 'coming-soon'))),
+  ],
+  'a page without a hero is fine': [page((d) => d.sections.shift())],
+  'a post can be in two lists, and a list can have different posts': [
+    page((d) => d.sections.push({ _key: 'p2', _type: 'postList', posts: [ref('post-hello')] })),
+    page((d) => (section(d, 'p').posts = [ref('post-hello', 'r1'), ref('post-second', 'r2')])),
+  ],
+  'a blank paragraph next to text is fine': [
+    page((d) => (section(d, 't').body = [block('  ', 'b0'), block('Some words.', 'b1')])),
+  ],
+  'a block may have one date, or both in order': [
+    dated('h', START),
+    dated('t', undefined, LATE),
+    dated('h', START, LATE),
+    dated('t', START, LATE),
+    dated('p', START, LATE),
+  ],
 };
 /** Names the frontend reads, with the kind each must be. Scalars match by JSON type; others by the type chain. */
+const DATES = { visibleFrom: 'datetime', visibleUntil: 'datetime' };
 const SHAPE = {
-  page: { title: 'string', slug: 'slug', showInNav: 'boolean', navLabel: 'string', sections: 'array' },
-  hero: { heading: 'string', image: 'image' },
-  richText: { body: 'array' },
-  postList: { posts: 'array' },
+  page: {
+    title: 'string',
+    slug: 'slug',
+    language: 'string',
+    showInNav: 'boolean',
+    navLabel: 'string',
+    sections: 'array',
+  },
+  hero: { heading: 'string', image: 'image', ...DATES },
+  richText: { body: 'array', ...DATES },
+  postList: { posts: 'array', ...DATES },
 };
 
 // Runs in its own Node process inside the project, so bare imports resolve from its node_modules.
@@ -147,15 +218,22 @@ if (posts && isKind(posts, 'array') && !(posts.of ?? []).every((m) => isKind(m, 
 const postTargets = (posts?.of ?? []).map((m) => (m.to ? m.to.map((t) => t.name) : [m.name]))
 if (schemaErrors.length || missing.length) done({status: 'ok', schemaErrors, missing, postTargets})
 const unsupported = []
-const client = (dataset) => {
+// Like the pinned Studio's client: perspective starts as raw, withConfig keeps earlier settings, a fetch option overrides.
+const client = (dataset, cfg = {apiVersion: '2025-02-19', perspective: 'raw'}) => {
   const stop = (m) => () => { unsupported.push(m); throw new Error('the offline grader does not support client.' + m) }
-  const c = {
-    withConfig: () => c,
-    fetch: async (q, params = {}) => (await evaluate(parse(q), {dataset, params})).get(),
-    getDataUrl: stop('getDataUrl'), request: stop('request'), observable: {fetch: stop('observable.fetch')},
-    config: () => ({projectId: 'offline', dataset: 'offline', apiVersion: '2025-02-19'}),
+  const view = (p) => {
+    if (p === undefined) p = String(cfg.apiVersion).replace(/^v/, '') >= '2025-02-19' ? 'published' : 'raw'
+    if (p === 'raw') return dataset
+    if (p === 'published') return dataset.filter((d) => !d._id.startsWith('drafts.') && !d._id.startsWith('versions.'))
+    return stop('fetch with perspective ' + JSON.stringify(p))()
   }
-  return c
+  return {
+    withConfig: (o = {}) => client(dataset, {...cfg, ...o}),
+    fetch: async (q, params = {}, opts = {}) =>
+      (await evaluate(parse(q), {dataset: view('perspective' in opts ? opts.perspective : cfg.perspective), params})).get(),
+    getDataUrl: stop('getDataUrl'), request: stop('request'), observable: {fetch: stop('observable.fetch')},
+    config: () => ({projectId: 'offline', dataset: 'offline', ...cfg}),
+  }
 }
 const check = async (doc) => {
   const dataset = [...corpus, doc]
@@ -232,7 +310,7 @@ const newWarnings = (c: Obj) => {
 };
 const flagged = (c: Obj, slug: boolean) => errors(c).length > 0 || (slug && newWarnings(c).length > 0);
 /** A draft gets the duplicate twin's own uniqueness warning: the rule mistook the published copy for a duplicate. */
-const DUPLICATE = 'a slug already used by another page is flagged';
+const DUPLICATE = 'a slug already used by another page in the same language is flagged';
 const dupWarning = (c: Obj) => {
   const dup = new Set((result.rules?.[DUPLICATE] ?? []).flatMap(newWarnings));
   return newWarnings(c).some((k: string) => dup.has(k));
@@ -274,10 +352,13 @@ test.each(Object.keys(RULES))('%s', (name) => {
   });
 });
 
-const DRAFT = 'a draft of a published page keeps its own slug';
+const SLUG_CONTROLS = ['a draft of a published page keeps its own slug', 'the same slug in another language is fine'];
 test.each(Object.keys(CONTROLS))('%s', (name) => {
   schemaReady();
   result.controls[name].forEach((c: Obj, i: number) =>
-    expect(clean(c) && !(name === DRAFT && dupWarning(c)), `valid control ${i + 1} is rejected: ${show(c)}`).toBe(true),
+    expect(
+      clean(c) && !(SLUG_CONTROLS.includes(name) && dupWarning(c)),
+      `valid control ${i + 1} is rejected: ${show(c)}`,
+    ).toBe(true),
   );
 });
