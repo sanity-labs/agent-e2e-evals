@@ -75,9 +75,9 @@ for(const e of ents){const xy=e.slice(0,2),rel=e.slice(3);
  try{if(fs.realpathSync(p)!==p)throw new Error('symlink in path');const ls=fs.lstatSync(p);if(!ls.isFile())throw new Error('not a regular file');
   fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);const fst=fs.fstatSync(fd);if(fst.ino!==ls.ino||fst.dev!==ls.dev)throw new Error('changed while opening');
   const cap=Math.min(per,left),buf=Buffer.alloc(cap+1);let got=0,r;while(got<cap+1&&(r=fs.readSync(fd,buf,got,cap+1-got,null))>0)got+=r;
-  const keep=buf.subarray(0,Math.min(got,cap));if(keep.includes(0)){skip(rel,'binary');continue}
+  const keep=buf.subarray(0,Math.min(got,cap));left-=keep.length;out.bytes+=keep.length;n++;if(keep.includes(0)){skip(rel,'binary');continue}
   let text=keep.toString('utf8');if(got>cap){out.truncated.push(rel);text=text.slice(0,Math.max(0,text.search(/\\s\\S*$/)))}
-  left-=keep.length;out.bytes+=keep.length;n++;out.files[rel]={text};
+  out.files[rel]={text};
  }catch(err){skip(rel,String(err.message).slice(0,80))}finally{if(fd!==undefined)fs.closeSync(fd)}}
 process.stdout.write(JSON.stringify(out));`;
 
@@ -140,7 +140,7 @@ export function createPreDeadlineSnapshot({ deadlineAt, leadMs = LEAD_MS, budget
       }
       const cwd = sb.getWorkingDirectory();
       const capped = async (cap: number, cmd: string[]) =>
-        parseJson((await run([NODE, '-e', CAPPED_SCRIPT, String(cap), cwd, ...cmd])).stdout.slice(0, cap + 4096), '{');
+        parseJson((await run([NODE, '-e', CAPPED_SCRIPT, String(cap), cwd, ...cmd])).stdout, '{');
       const list = await capped(LIST_CAP, ['opencode', 'session', 'list', '--format', 'json']);
       const sessions = list?.ok === true && typeof list.text === 'string' ? parseJson(list.text, '[') : undefined;
       const ok = Array.isArray(sessions) ? sessions.filter((s) => s?.directory === cwd && !('parentID' in s)) : [];
@@ -170,7 +170,7 @@ export function createPreDeadlineSnapshot({ deadlineAt, leadMs = LEAD_MS, budget
       }
       const files = await run([NODE, '-e', FILES_SCRIPT, cwd, '262144', '2097152', '300']);
       const list2 = parseJson(files.stdout, '{');
-      if (list2 && typeof list2.files === 'object' && !list2.error) rec.files = list2;
+      if (files.exitCode === 0 && list2 && typeof list2.files === 'object' && !list2.error) rec.files = list2;
       else rec.errors.push(`file list failed: ${typeof list2?.error === 'string' ? list2.error : 'unreadable'}`);
     } catch (err) {
       rec.errors.push((err as Error).message);

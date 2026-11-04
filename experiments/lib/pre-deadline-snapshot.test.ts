@@ -126,6 +126,7 @@ test.each([
 test.each([
   ['a failed git status', { stdout: '{"files":{},"error":"git status failed"}' }, /git status failed/],
   ['unreadable output', { stdout: 'garbage' }, /unreadable/],
+  ['a helper that exited non-zero', { stdout: '{"files":{"a.ts":{"text":"x"}}}', exitCode: 137 }, /file list failed/],
 ])('a file list from %s is not kept and the record is partial', async (_name, files, reason) => {
   const { sandbox } = fakeSandbox({ ...ok, files });
   const rec = await snap(sandbox);
@@ -190,6 +191,10 @@ test('the capped runner keeps output only when the command succeeds within the c
   expect(run(100, 'head -c 101 /dev/zero')).toEqual({ ok: false, reason: 'output over cap' });
   expect(run(100, 'echo partial; exit 1')).toEqual({ ok: false, reason: 'exited 1' });
   expect(run(100, 'head -c 5000000 /dev/zero >&2; echo ok')).toEqual({ ok: true, text: 'ok\n' });
+  // Under the raw cap but heavily escaped in JSON: still one whole, parseable envelope.
+  const quoted = run(4000, 'head -c 3000 /dev/zero | tr "\\000" "\\""');
+  expect(quoted.ok).toBe(true);
+  expect(quoted.text).toBe('"'.repeat(3000));
 });
 
 test('the file reader skips excluded folders, env names, binaries and symlinks, and caps bytes while reading', () => {
@@ -276,6 +281,18 @@ test('the file reader skips excluded folders, env names, binaries and symlinks, 
   expect(many.files['zz-app.ts']).toEqual({ text: 'changed' });
   expect(many.skipped.length + many.skippedMore).toBeGreaterThan(11000);
   expect(many.skipped.length).toBeLessThanOrEqual(200);
+
+  // Binary files are not kept, but what was read from them still counts against the budget.
+  const bins = join(dir, 'bins');
+  mkdirSync(bins);
+  execFileSync('git', ['init', '-q'], { cwd: bins });
+  for (let i = 0; i < 10; i++)
+    writeFileSync(join(bins, `b${i}.bin`), Buffer.concat([Buffer.from([0]), Buffer.alloc(20, 1)]));
+  const binRun = JSON.parse(
+    execFileSync(process.execPath, ['-e', FILES_SCRIPT, bins, '100', '25', '300'], { encoding: 'utf8' }),
+  );
+  expect(binRun.bytes).toBeLessThanOrEqual(25);
+  expect(binRun.skipped.filter((s: { reason: string }) => s.reason === 'budget').length).toBeGreaterThanOrEqual(8);
 
   const tight = run(20, 25);
   expect(tight.bytes).toBeLessThanOrEqual(25);
