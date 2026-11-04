@@ -4,6 +4,7 @@ These notes live outside the fixture folders so the harness does not supply them
 
 - [sanity-blueprints](sanity-blueprints.md)
 - [sanity-migration](sanity-migration.md)
+- [sanity-schema](sanity-schema.md)
 
 ## Fixture lockfiles
 
