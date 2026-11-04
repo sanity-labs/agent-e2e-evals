@@ -117,7 +117,8 @@ const RULES: Record<string, Obj[]> = {
   ],
   "a block's end must be later than its start": [
     dated('t', START, EARLY),
-    dated('h', START, START),
+    // The same instant written with an offset: equal in time, but later as text.
+    dated('h', START, '2026-01-01T11:00:00.000+01:00'),
     dated('p', LATE, START),
   ],
 };
@@ -230,7 +231,7 @@ const client = (dataset, cfg = {apiVersion: '2025-02-19', perspective: 'raw'}) =
   return {
     withConfig: (o = {}) => client(dataset, {...cfg, ...o}),
     fetch: async (q, params = {}, opts = {}) =>
-      (await evaluate(parse(q), {dataset: view('perspective' in opts ? opts.perspective : cfg.perspective), params})).get(),
+      (await evaluate(parse(q), {dataset: view(opts.perspective || cfg.perspective), params})).get(),
     getDataUrl: stop('getDataUrl'), request: stop('request'), observable: {fetch: stop('observable.fetch')},
     config: () => ({projectId: 'offline', dataset: 'offline', ...cfg}),
   }

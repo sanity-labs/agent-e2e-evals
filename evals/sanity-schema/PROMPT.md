@@ -16,6 +16,6 @@ Editors should get a validation error before they can publish when:
 - a post list has no posts, or links to the same post more than once (the same post can appear in different lists);
 - a block has both `visibleFrom` and `visibleUntil`, and `visibleUntil` isn't later in time than `visibleFrom` (either one on its own is fine).
 
-Editors should also be warned, or stopped, when a page uses a slug that another page in the same language already has. The same slug in another language is fine, A slug that another page in the same language holds only in an unpublished draft counts as taken too. A page's own draft and published copies don't count as duplicates of each other. A post list may only link to posts.
+Editors should also be warned, or stopped, when a page uses a slug that another page in the same language already has. The same slug in another language is fine. A slug that another page in the same language holds only in an unpublished draft counts as taken too. A page's own draft and published copies don't count as duplicates of each other. A post list may only link to posts.
 
 Example content is in `data/sample.ndjson`. Make sure `tsc --noEmit` passes and `sanity schema extract` works. Everything you need is installed: don't add or change dependencies, and don't change `tsconfig.json`. You don't need to deploy, run the Studio or connect to a dataset.
