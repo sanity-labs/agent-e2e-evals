@@ -1,6 +1,6 @@
 # sanity-schema eval
 
-Can a coding agent model content in a Sanity Studio so editors get the rules they need? The fixture is a small Studio with `post` and `author` types. The agent adds a `page` type with a slug, a navigation flag and label, and a list of sections (`hero`, `richText`, `postList`), plus the editor rules the prompt lists (see [the prompt](../../evals/sanity-schema/PROMPT.md)). Task version 1.
+Can a coding agent model content in a Sanity Studio so editors get the rules they need? The fixture is a small Studio with `post` and `author` types. The agent adds a `page` type with a slug, a navigation flag and label, and a list of sections (`hero`, `richText`, `postList`), plus the editor rules the prompt lists (see [the prompt](../../evals/sanity-schema/PROMPT.md)). Task version 2: v1 plus a page language (en or nb), slugs unique per language with drafts counting as taken, at most one hero and only first, rich text that counts blank paragraphs as empty, no repeated post in a list, and optional start/end dates in order. Results from v1 and v2 are never pooled.
 
 **Grading is offline.** [`EVAL.ts`](../../evals/sanity-schema/EVAL.ts):
 
@@ -17,3 +17,9 @@ A test message starting `UNKNOWN` means the grader couldn't observe the attempt 
 - **Pinned internal API.** Validation uses `evaluateDocumentInternal` from `@sanity/validation/_internal`, because the public `validateDocument` runs in CLI mode, which turns custom document-level `.error()` rules into warnings. It is pinned at `sanity` 6.22.0 by the fixture's shrinkwrap. **Before upgrading Sanity in this fixture, check that this internal function and its Studio-mode behaviour still exist, then rerun the calibration set.**
 - Every run records `npm-shrinkwrap.json` as tampering, because npm prunes 27 entries marked extraneous in the committed file. That exact change is benign; any other change to the lockfile needs a look.
 - Drafts still save; a pass means content is validated before publishing in this offline check. The Studio UI is not run.
+
+**Notes for v2 results:**
+
+- A custom slug query that asks for the `drafts` perspective gets UNKNOWN; only raw and published are simulated. Duplicate-slug grading compares warnings within a bound and is not a semantic uniqueness proof.
+- The date twins include an offset time equal to a UTC time. Comparing ISO strings as text fails it. Studio's date-time input always writes UTC, so offset values arrive only through the API, imports or migrations.
+- v2 attempts took 10 to 30 minutes in the Haiku pilot, so the 30-minute limit is part of what is measured.
