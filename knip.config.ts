@@ -11,7 +11,7 @@ const config: KnipConfig = {
   // Make sure eval fixtures aren't considered part of the project
   project: ['experiments/**/*.ts', 'scripts/**/*.ts', 'evals/*/EVAL.ts', '*.ts'],
   // EVAL.ts runs inside its fixture, which pins these; they are not root dependencies.
-  ignoreDependencies: ['@sanity/mutator', 'groq-js'],
+  ignoreDependencies: ['@sanity/mutator', 'cheerio', 'groq-js'],
 };
 
 export default config;
