@@ -67,7 +67,7 @@ const post = (
 const JPG = 'image-0c1d2e3f4a5b6c7d8e9f-2000x1333-jpg';
 const WEBP = 'image-5e5e5e5e5e5e5e5e5e5e-800x800-webp';
 const PNG = 'image-77aa88bb99cc00dd11ee-1024x768-png';
-const BREAD = ['patience', 'warm water', 'a starter recipe', 'https://bake.example.net/starter'];
+const BREAD = ['patience', 'warm water', 'a starter recipe', 'https://bake.example.net/starter'] as const;
 /** Hidden content: same shape as data/sample.ndjson, different values. Every referenced author and image asset is present. */
 const HIDDEN: Doc[] = [
   { _id: 'author-lena', _type: 'author', name: 'Lena Brandt' },
