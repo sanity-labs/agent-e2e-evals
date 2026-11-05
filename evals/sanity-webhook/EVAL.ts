@@ -218,11 +218,14 @@ beforeAll(async () => {
 
   // A fresh server with the secret set whose first requests are the invalid ones, so a route that refreshes on whatever
   // request comes first (or on a timer or delay started by any request) can't hide behind the valid request going first.
+  // Its history before the invalid requests matches the main server's before the valid one (same reads and witness call).
   const fresh = await restart(true);
   const freshWarmed = isTitle(await readPages(fresh.base), titleA);
   writeFileSync(data, ndjson(B));
+  const freshWitness = (await (await fetch(`${fresh.base}/api/sample-witness?slug=${X}`)).json()) as { title?: string };
+  const freshStale = freshWitness.title === titleB && (await repeated(fresh.base, titleA));
   results.badFirstStatuses = await invalidRequests(fresh.base, raw);
-  results.bad = heldAfterValid && freshWarmed && (await holds(fresh.base, titleA, 11_000));
+  results.bad = heldAfterValid && freshWarmed && freshStale && (await holds(fresh.base, titleA, 11_000));
   await stop(fresh.child);
 
   const second = await restart(false);
