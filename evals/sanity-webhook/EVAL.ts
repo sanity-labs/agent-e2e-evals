@@ -17,8 +17,10 @@ const makePost = (id: string, slug: string, title: string): Doc => ({
 const X = 'hidden-webhook-post';
 const titleA = 'Alpine observatory';
 const titleB = 'Bright observatory';
+const titleC = 'Calm observatory';
 const A = [makePost('post-x', X, titleA), makePost('post-y', 'quiet-forest', 'Quiet forest')];
 const B = [makePost('post-x', X, titleB), makePost('post-y', 'quiet-forest', 'Quiet forest')];
+const C = [makePost('post-x', X, titleC), makePost('post-y', 'quiet-forest', 'Quiet forest')];
 const SECRET = 'grader-webhook-secret-8e4c';
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const ndjson = (docs: Doc[]) => `${docs.map((doc) => JSON.stringify(doc)).join('\n')}\n`;
@@ -111,10 +113,12 @@ const readPages = async (base: string) => ({
   list: visibleText(await (await fetch(`${base}/posts`)).text()),
   post: visibleText(await (await fetch(`${base}/posts/${X}`)).text()),
 });
-// Both pages show this version's title and neither shows the other version's.
+// Both pages show this version's title and neither shows another version's.
 const isTitle = (pages: Awaited<ReturnType<typeof readPages>>, title: string) => {
-  const other = title === titleA ? titleB : titleA;
-  return [pages.list, pages.post].every((text) => text.includes(title) && !text.includes(other));
+  const others = [titleA, titleB, titleC].filter((other) => other !== title);
+  return [pages.list, pages.post].every(
+    (text) => text.includes(title) && others.every((other) => !text.includes(other)),
+  );
 };
 async function repeated(base: string, title: string) {
   const reads = [];
@@ -123,6 +127,15 @@ async function repeated(base: string, title: string) {
     await sleep(200);
   }
   return reads.every(Boolean);
+}
+// Every read for ms milliseconds shows this title.
+async function holds(base: string, title: string, ms: number) {
+  const until = Date.now() + ms;
+  do {
+    if (!isTitle(await readPages(base), title)) return false;
+    await sleep(500);
+  } while (Date.now() < until);
+  return true;
 }
 async function webhook(base: string, sent: string, signed: string | null, secret = SECRET) {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
@@ -159,20 +172,6 @@ beforeAll(async () => {
   results.stale = witness.title === titleB && (await repeated(first.base, titleA));
 
   const raw = JSON.stringify({ _type: 'post', slug: X });
-  const changed = JSON.stringify({ _type: 'post', slug: 'different-post' });
-  const badResponses = [
-    await webhook(first.base, changed, raw),
-    await webhook(first.base, raw, raw, 'wrong-secret'),
-    await webhook(first.base, raw, null),
-    await fetch(`${first.base}/api/revalidate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'sanity-webhook-signature': `t=${Date.now()}` },
-      body: raw,
-    }),
-  ];
-  results.badStatuses = badResponses.map((response) => response.status);
-  results.bad = await repeated(first.base, titleA);
-
   const valid = await webhook(first.base, raw, raw);
   let refreshed = false;
   const deadline = Date.now() + 10_000;
@@ -185,6 +184,24 @@ beforeAll(async () => {
   }
   results.valid = valid.ok && refreshed;
   const refreshAfter = Date.now() - firstReadAt;
+
+  // Invalid requests come after the valid refresh, so nothing they trigger later can be credited to it. The source moves on to C;
+  // the pages must keep what they showed for longer than test 4's 10 s poll, so a delayed refresh they trigger shows up here.
+  const shown = refreshed ? titleB : titleA;
+  writeFileSync(data, ndjson(C));
+  const changed = JSON.stringify({ _type: 'post', slug: 'different-post' });
+  const badResponses = [
+    await webhook(first.base, changed, raw),
+    await webhook(first.base, raw, raw, 'wrong-secret'),
+    await webhook(first.base, raw, null),
+    await fetch(`${first.base}/api/revalidate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'sanity-webhook-signature': `t=${Date.now()}` },
+      body: raw,
+    }),
+  ];
+  results.badStatuses = badResponses.map((response) => response.status);
+  results.bad = await holds(first.base, shown, 11_000);
   await stop(first.child);
 
   rmSync('.next', { recursive: true, force: true });
@@ -208,7 +225,7 @@ beforeAll(async () => {
   }
   results.unset = held;
   await stop(second.child);
-}, 150_000);
+}, 180_000);
 
 afterAll(async () => {
   for (const child of children) await stop(child);
