@@ -124,7 +124,7 @@ test('paired experiments alternate round by round instead of running as two bloc
   ]);
 });
 
-test('each attempt records the hash of the prompt it sends, including an experiment prompt suffix', async () => {
+test('each attempt records the hash of the prompt it sends, including an experiment editPrompt', async () => {
   const result = await run('cap', ['experiments/gpt-5.6-terra-slug-hint.ts']);
   if (!('manifest' in result) || !result.manifest)
     throw new Error(`run failed: ${'error' in result ? result.error : ''}`);
