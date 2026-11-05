@@ -142,6 +142,21 @@ async function webhook(base: string, sent: string, signed: string | null, secret
   if (signed !== null) headers['sanity-webhook-signature'] = signature(signed, secret);
   return fetch(`${base}/api/revalidate`, { method: 'POST', headers, body: sent });
 }
+// Changed body, wrong secret, missing header, malformed header. Statuses are recorded, not graded.
+async function invalidRequests(base: string, raw: string) {
+  const changed = JSON.stringify({ _type: 'post', slug: 'different-post' });
+  const responses = [
+    await webhook(base, changed, raw),
+    await webhook(base, raw, raw, 'wrong-secret'),
+    await webhook(base, raw, null),
+    await fetch(`${base}/api/revalidate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'sanity-webhook-signature': `t=${Date.now()}` },
+      body: raw,
+    }),
+  ];
+  return responses.map((response) => response.status);
+}
 
 beforeAll(async () => {
   temp = mkdtempSync(join(tmpdir(), 'sanity-webhook-grade-'));
@@ -159,6 +174,14 @@ beforeAll(async () => {
   if (build.status !== 0) return;
   const clean = join(temp, 'clean-next');
   cpSync('.next', clean, { recursive: true });
+  // A new server on an unmodified copy of the build, with content back at A.
+  const restart = async (withSecret: boolean) => {
+    rmSync('.next', { recursive: true, force: true });
+    cpSync(clean, '.next', { recursive: true });
+    writeFileSync(data, ndjson(A));
+    writeFileSync(log, '');
+    return start(data, log, withSecret);
+  };
 
   const first = await start(data, log, true);
   const firstReadAt = Date.now();
@@ -185,30 +208,24 @@ beforeAll(async () => {
   results.valid = valid.ok && refreshed;
   const refreshAfter = Date.now() - firstReadAt;
 
-  // Invalid requests come after the valid refresh, so nothing they trigger later can be credited to it. The source moves on to C;
-  // the pages must keep what they showed for longer than test 4's 10 s poll, so a delayed refresh they trigger shows up here.
+  // Invalid requests also come after the valid refresh, so nothing they trigger later can be credited to it. The source moves on
+  // to C; the pages must keep what they showed for longer than test 4's 10 s poll, so a delayed refresh shows up here.
   const shown = refreshed ? titleB : titleA;
   writeFileSync(data, ndjson(C));
-  const changed = JSON.stringify({ _type: 'post', slug: 'different-post' });
-  const badResponses = [
-    await webhook(first.base, changed, raw),
-    await webhook(first.base, raw, raw, 'wrong-secret'),
-    await webhook(first.base, raw, null),
-    await fetch(`${first.base}/api/revalidate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'sanity-webhook-signature': `t=${Date.now()}` },
-      body: raw,
-    }),
-  ];
-  results.badStatuses = badResponses.map((response) => response.status);
-  results.bad = await holds(first.base, shown, 11_000);
+  results.badAfterValidStatuses = await invalidRequests(first.base, raw);
+  const heldAfterValid = await holds(first.base, shown, 11_000);
   await stop(first.child);
 
-  rmSync('.next', { recursive: true, force: true });
-  cpSync(clean, '.next', { recursive: true });
-  writeFileSync(data, ndjson(A));
-  writeFileSync(log, '');
-  const second = await start(data, log, false);
+  // A fresh server with the secret set whose first requests are the invalid ones, so a route that refreshes on whatever
+  // request comes first (or on a timer or delay started by any request) can't hide behind the valid request going first.
+  const fresh = await restart(true);
+  const freshWarmed = isTitle(await readPages(fresh.base), titleA);
+  writeFileSync(data, ndjson(B));
+  results.badFirstStatuses = await invalidRequests(fresh.base, raw);
+  results.bad = heldAfterValid && freshWarmed && (await holds(fresh.base, titleA, 11_000));
+  await stop(fresh.child);
+
+  const second = await restart(false);
   const secondReadAt = Date.now();
   const warmed = isTitle(await readPages(second.base), titleA);
   writeFileSync(data, ndjson(B));
@@ -225,7 +242,7 @@ beforeAll(async () => {
   }
   results.unset = held;
   await stop(second.child);
-}, 180_000);
+}, 210_000);
 
 afterAll(async () => {
   for (const child of children) await stop(child);
