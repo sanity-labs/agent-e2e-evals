@@ -174,12 +174,14 @@ beforeAll(async () => {
   if (build.status !== 0) return;
   const clean = join(temp, 'clean-next');
   cpSync('.next', clean, { recursive: true });
+  // Every server starts from the same query log: the one the build left.
+  const builtLog = readFileSync(log, 'utf8');
   // A new server on an unmodified copy of the build, with content back at A.
   const restart = async (withSecret: boolean) => {
     rmSync('.next', { recursive: true, force: true });
     cpSync(clean, '.next', { recursive: true });
     writeFileSync(data, ndjson(A));
-    writeFileSync(log, '');
+    writeFileSync(log, builtLog);
     return start(data, log, withSecret);
   };
 
