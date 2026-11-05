@@ -10,629 +10,132 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { load, type CheerioAPI } from 'cheerio';
 import { beforeAll, expect, test } from 'vitest';
 
 type Doc = Record<string, any>;
-/** Hidden content: same shape as the sample, different values. Every referenced author and image asset is present. */
+const span = (_key: string, text: string, marks: string[] = []) => ({ _key, _type: 'span', text, marks });
+const para = (_key: string, children: Doc[], markDefs: Doc[] = []) => ({
+  _key,
+  _type: 'block',
+  style: 'normal',
+  markDefs,
+  children,
+});
+const asset = (_id: string, width: number, height: number, extension: string) => ({
+  _id,
+  _type: 'sanity.imageAsset',
+  extension,
+  mimeType: `image/${extension === 'jpg' ? 'jpeg' : extension}`,
+  url: `https://cdn.sanity.io/images/abc123/production/${_id.slice(6, _id.lastIndexOf('-'))}.${extension}`,
+  metadata: { dimensions: { width, height, aspectRatio: width / height } },
+});
+/** A post with two paragraphs: plain text, a bold and an italic span, and a link. */
+const post = (
+  _id: string,
+  title: string,
+  slug: string | null,
+  author: string,
+  publishedAt: string,
+  image: string,
+  alt: string,
+  [bold, italic, linkText, href, extra]: [string, string, string, string, string],
+) => ({
+  _id,
+  _type: 'post',
+  title,
+  ...(slug ? { slug: { _type: 'slug', current: slug } } : {}),
+  author: { _type: 'reference', _ref: author },
+  publishedAt,
+  mainImage: { _type: 'image', asset: { _type: 'reference', _ref: image }, alt },
+  body: [
+    para('p1', [
+      span('s1', `${title} begins here. `),
+      span('s2', bold, ['strong']),
+      span('s3', ' and '),
+      span('s4', italic, ['em']),
+      span('s5', '.'),
+    ]),
+    para(
+      'p2',
+      [span('s6', 'Read '), span('s7', linkText, ['l1']), span('s8', ` for more. ${extra}`)],
+      [{ _key: 'l1', _type: 'link', href }],
+    ),
+  ],
+});
+const JPG = 'image-0c1d2e3f4a5b6c7d8e9f-2000x1333-jpg';
+const WEBP = 'image-5e5e5e5e5e5e5e5e5e5e-800x800-webp';
+const PNG = 'image-77aa88bb99cc00dd11ee-1024x768-png';
+const BREAD = ['patience', 'warm water', 'a starter recipe', 'https://bake.example.net/starter'];
+/** Hidden content: same shape as data/sample.ndjson, different values. Every referenced author and image asset is present. */
 const HIDDEN: Doc[] = [
-  {
-    _id: 'author-lena',
-    _type: 'author',
-    name: 'Lena Brandt',
-  },
-  {
-    _id: 'author-kofi',
-    _type: 'author',
-    name: 'Kofi Mensah',
-  },
-  {
-    _id: 'author-yuki',
-    _type: 'author',
-    name: 'Yuki Tanaka',
-  },
-  {
-    _id: 'image-0c1d2e3f4a5b6c7d8e9f-2000x1333-jpg',
-    _type: 'sanity.imageAsset',
-    extension: 'jpg',
-    mimeType: 'image/jpeg',
-    url: 'https://cdn.sanity.io/images/abc123/production/0c1d2e3f4a5b6c7d8e9f-2000x1333.jpg',
-    metadata: {
-      dimensions: {
-        width: 2000,
-        height: 1333,
-        aspectRatio: 1.5003750937734435,
-      },
-    },
-  },
-  {
-    _id: 'image-5e5e5e5e5e5e5e5e5e5e-800x800-webp',
-    _type: 'sanity.imageAsset',
-    extension: 'webp',
-    mimeType: 'image/webp',
-    url: 'https://cdn.sanity.io/images/abc123/production/5e5e5e5e5e5e5e5e5e5e-800x800.webp',
-    metadata: {
-      dimensions: {
-        width: 800,
-        height: 800,
-        aspectRatio: 1,
-      },
-    },
-  },
-  {
-    _id: 'image-77aa88bb99cc00dd11ee-1024x768-png',
-    _type: 'sanity.imageAsset',
-    extension: 'png',
-    mimeType: 'image/png',
-    url: 'https://cdn.sanity.io/images/abc123/production/77aa88bb99cc00dd11ee-1024x768.png',
-    metadata: {
-      dimensions: {
-        width: 1024,
-        height: 768,
-        aspectRatio: 1.3333333333333333,
-      },
-    },
-  },
-  {
-    _id: 'post-h-harbour',
-    _type: 'post',
-    title: 'Winter at the harbour',
-    slug: {
-      _type: 'slug',
-      current: 'winter-at-the-harbour',
-    },
-    author: {
-      _type: 'reference',
-      _ref: 'author-lena',
-    },
-    publishedAt: '2026-01-19T07:45:00Z',
-    mainImage: {
-      _type: 'image',
-      asset: {
-        _type: 'reference',
-        _ref: 'image-0c1d2e3f4a5b6c7d8e9f-2000x1333-jpg',
-      },
-      alt: 'Fishing boats under snow',
-    },
-    body: [
-      {
-        _key: 'p1',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [],
-        children: [
-          {
-            _key: 's1',
-            _type: 'span',
-            text: 'Winter at the harbour begins here. ',
-            marks: [],
-          },
-          {
-            _key: 's2',
-            _type: 'span',
-            text: 'frozen ropes',
-            marks: ['strong'],
-          },
-          {
-            _key: 's3',
-            _type: 'span',
-            text: ' and ',
-            marks: [],
-          },
-          {
-            _key: 's4',
-            _type: 'span',
-            text: 'slow mornings',
-            marks: ['em'],
-          },
-          {
-            _key: 's5',
-            _type: 'span',
-            text: '.',
-            marks: [],
-          },
-        ],
-      },
-      {
-        _key: 'p2',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [
-          {
-            _key: 'l1',
-            _type: 'link',
-            href: 'https://tides.example.org/winter',
-          },
-        ],
-        children: [
-          {
-            _key: 's6',
-            _type: 'span',
-            text: 'Read ',
-            marks: [],
-          },
-          {
-            _key: 's7',
-            _type: 'span',
-            text: 'the tide table',
-            marks: ['l1'],
-          },
-          {
-            _key: 's8',
-            _type: 'span',
-            text: ' for more. Bring gloves.',
-            marks: [],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    _id: 'post-h-bread',
-    _type: 'post',
-    title: 'Bread for beginners',
-    slug: {
-      _type: 'slug',
-      current: 'bread-for-beginners',
-    },
-    author: {
-      _type: 'reference',
-      _ref: 'author-kofi',
-    },
-    publishedAt: '2026-05-27T16:10:00Z',
-    mainImage: {
-      _type: 'image',
-      asset: {
-        _type: 'reference',
-        _ref: 'image-5e5e5e5e5e5e5e5e5e5e-800x800-webp',
-      },
-      alt: 'A round loaf on a board',
-    },
-    body: [
-      {
-        _key: 'p1',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [],
-        children: [
-          {
-            _key: 's1',
-            _type: 'span',
-            text: 'Bread for beginners begins here. ',
-            marks: [],
-          },
-          {
-            _key: 's2',
-            _type: 'span',
-            text: 'patience',
-            marks: ['strong'],
-          },
-          {
-            _key: 's3',
-            _type: 'span',
-            text: ' and ',
-            marks: [],
-          },
-          {
-            _key: 's4',
-            _type: 'span',
-            text: 'warm water',
-            marks: ['em'],
-          },
-          {
-            _key: 's5',
-            _type: 'span',
-            text: '.',
-            marks: [],
-          },
-        ],
-      },
-      {
-        _key: 'p2',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [
-          {
-            _key: 'l1',
-            _type: 'link',
-            href: 'https://bake.example.net/starter',
-          },
-        ],
-        children: [
-          {
-            _key: 's6',
-            _type: 'span',
-            text: 'Read ',
-            marks: [],
-          },
-          {
-            _key: 's7',
-            _type: 'span',
-            text: 'a starter recipe',
-            marks: ['l1'],
-          },
-          {
-            _key: 's8',
-            _type: 'span',
-            text: ' for more. Let it rest.',
-            marks: [],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    _id: 'post-h-maps',
-    _type: 'post',
-    title: 'Reading old maps',
-    slug: {
-      _type: 'slug',
-      current: 'reading-old-maps',
-    },
-    author: {
-      _type: 'reference',
-      _ref: 'author-yuki',
-    },
-    publishedAt: '2026-03-13T10:00:00Z',
-    mainImage: {
-      _type: 'image',
-      asset: {
-        _type: 'reference',
-        _ref: 'image-77aa88bb99cc00dd11ee-1024x768-png',
-      },
-      alt: 'A hand-drawn coastline',
-    },
-    body: [
-      {
-        _key: 'p1',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [],
-        children: [
-          {
-            _key: 's1',
-            _type: 'span',
-            text: 'Reading old maps begins here. ',
-            marks: [],
-          },
-          {
-            _key: 's2',
-            _type: 'span',
-            text: 'compass roses',
-            marks: ['strong'],
-          },
-          {
-            _key: 's3',
-            _type: 'span',
-            text: ' and ',
-            marks: [],
-          },
-          {
-            _key: 's4',
-            _type: 'span',
-            text: 'faded ink',
-            marks: ['em'],
-          },
-          {
-            _key: 's5',
-            _type: 'span',
-            text: '.',
-            marks: [],
-          },
-        ],
-      },
-      {
-        _key: 'p2',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [
-          {
-            _key: 'l1',
-            _type: 'link',
-            href: 'https://archive.example.com/maps?ref=blog',
-          },
-        ],
-        children: [
-          {
-            _key: 's6',
-            _type: 'span',
-            text: 'Read ',
-            marks: [],
-          },
-          {
-            _key: 's7',
-            _type: 'span',
-            text: 'the archive',
-            marks: ['l1'],
-          },
-          {
-            _key: 's8',
-            _type: 'span',
-            text: ' for more. Mind the scale.',
-            marks: [],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    _id: 'post-h-noslug',
-    _type: 'post',
-    title: 'Unfinished: a post without a slug',
-    author: {
-      _type: 'reference',
-      _ref: 'author-lena',
-    },
-    publishedAt: '2026-06-28T09:00:00Z',
-    mainImage: {
-      _type: 'image',
-      asset: {
-        _type: 'reference',
-        _ref: 'image-0c1d2e3f4a5b6c7d8e9f-2000x1333-jpg',
-      },
-      alt: 'Empty quay',
-    },
-    body: [
-      {
-        _key: 'p1',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [],
-        children: [
-          {
-            _key: 's1',
-            _type: 'span',
-            text: 'Unfinished: a post without a slug begins here. ',
-            marks: [],
-          },
-          {
-            _key: 's2',
-            _type: 'span',
-            text: 'not ready',
-            marks: ['strong'],
-          },
-          {
-            _key: 's3',
-            _type: 'span',
-            text: ' and ',
-            marks: [],
-          },
-          {
-            _key: 's4',
-            _type: 'span',
-            text: 'yet',
-            marks: ['em'],
-          },
-          {
-            _key: 's5',
-            _type: 'span',
-            text: '.',
-            marks: [],
-          },
-        ],
-      },
-      {
-        _key: 'p2',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [
-          {
-            _key: 'l1',
-            _type: 'link',
-            href: 'https://example.com/none',
-          },
-        ],
-        children: [
-          {
-            _key: 's6',
-            _type: 'span',
-            text: 'Read ',
-            marks: [],
-          },
-          {
-            _key: 's7',
-            _type: 'span',
-            text: 'nowhere',
-            marks: ['l1'],
-          },
-          {
-            _key: 's8',
-            _type: 'span',
-            text: ' for more. ',
-            marks: [],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    _id: 'drafts.post-h-secret',
-    _type: 'post',
-    title: 'Secret draft post',
-    slug: {
-      _type: 'slug',
-      current: 'secret-draft-post',
-    },
-    author: {
-      _type: 'reference',
-      _ref: 'author-kofi',
-    },
-    publishedAt: '2026-07-14T09:00:00Z',
-    mainImage: {
-      _type: 'image',
-      asset: {
-        _type: 'reference',
-        _ref: 'image-5e5e5e5e5e5e5e5e5e5e-800x800-webp',
-      },
-      alt: 'Hidden',
-    },
-    body: [
-      {
-        _key: 'p1',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [],
-        children: [
-          {
-            _key: 's1',
-            _type: 'span',
-            text: 'Secret draft post begins here. ',
-            marks: [],
-          },
-          {
-            _key: 's2',
-            _type: 'span',
-            text: 'draft',
-            marks: ['strong'],
-          },
-          {
-            _key: 's3',
-            _type: 'span',
-            text: ' and ',
-            marks: [],
-          },
-          {
-            _key: 's4',
-            _type: 'span',
-            text: 'only',
-            marks: ['em'],
-          },
-          {
-            _key: 's5',
-            _type: 'span',
-            text: '.',
-            marks: [],
-          },
-        ],
-      },
-      {
-        _key: 'p2',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [
-          {
-            _key: 'l1',
-            _type: 'link',
-            href: 'https://example.com/hidden',
-          },
-        ],
-        children: [
-          {
-            _key: 's6',
-            _type: 'span',
-            text: 'Read ',
-            marks: [],
-          },
-          {
-            _key: 's7',
-            _type: 'span',
-            text: 'hidden',
-            marks: ['l1'],
-          },
-          {
-            _key: 's8',
-            _type: 'span',
-            text: ' for more. ',
-            marks: [],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    _id: 'drafts.post-h-bread',
-    _type: 'post',
-    title: 'Bread for beginners (draft edit)',
-    slug: {
-      _type: 'slug',
-      current: 'bread-for-beginners',
-    },
-    author: {
-      _type: 'reference',
-      _ref: 'author-kofi',
-    },
-    publishedAt: '2026-05-27T16:10:00Z',
-    mainImage: {
-      _type: 'image',
-      asset: {
-        _type: 'reference',
-        _ref: 'image-5e5e5e5e5e5e5e5e5e5e-800x800-webp',
-      },
-      alt: 'A round loaf on a board',
-    },
-    body: [
-      {
-        _key: 'p1',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [],
-        children: [
-          {
-            _key: 's1',
-            _type: 'span',
-            text: 'Bread for beginners (draft edit) begins here. ',
-            marks: [],
-          },
-          {
-            _key: 's2',
-            _type: 'span',
-            text: 'patience',
-            marks: ['strong'],
-          },
-          {
-            _key: 's3',
-            _type: 'span',
-            text: ' and ',
-            marks: [],
-          },
-          {
-            _key: 's4',
-            _type: 'span',
-            text: 'warm water',
-            marks: ['em'],
-          },
-          {
-            _key: 's5',
-            _type: 'span',
-            text: '.',
-            marks: [],
-          },
-        ],
-      },
-      {
-        _key: 'p2',
-        _type: 'block',
-        style: 'normal',
-        markDefs: [
-          {
-            _key: 'l1',
-            _type: 'link',
-            href: 'https://bake.example.net/starter',
-          },
-        ],
-        children: [
-          {
-            _key: 's6',
-            _type: 'span',
-            text: 'Read ',
-            marks: [],
-          },
-          {
-            _key: 's7',
-            _type: 'span',
-            text: 'a starter recipe',
-            marks: ['l1'],
-          },
-          {
-            _key: 's8',
-            _type: 'span',
-            text: ' for more. Draft only.',
-            marks: [],
-          },
-        ],
-      },
-    ],
-  },
+  { _id: 'author-lena', _type: 'author', name: 'Lena Brandt' },
+  { _id: 'author-kofi', _type: 'author', name: 'Kofi Mensah' },
+  { _id: 'author-yuki', _type: 'author', name: 'Yuki Tanaka' },
+  asset(JPG, 2000, 1333, 'jpg'),
+  asset(WEBP, 800, 800, 'webp'),
+  asset(PNG, 1024, 768, 'png'),
+  post(
+    'post-h-harbour',
+    'Winter at the harbour',
+    'winter-at-the-harbour',
+    'author-lena',
+    '2026-01-19T07:45:00Z',
+    JPG,
+    'Fishing boats under snow',
+    ['frozen ropes', 'slow mornings', 'the tide table', 'https://tides.example.org/winter', 'Bring gloves.'],
+  ),
+  post(
+    'post-h-bread',
+    'Bread for beginners',
+    'bread-for-beginners',
+    'author-kofi',
+    '2026-05-27T16:10:00Z',
+    WEBP,
+    'A round loaf on a board',
+    [...BREAD, 'Let it rest.'],
+  ),
+  post(
+    'post-h-maps',
+    'Reading old maps',
+    'reading-old-maps',
+    'author-yuki',
+    '2026-03-13T10:00:00Z',
+    PNG,
+    'A hand-drawn coastline',
+    ['compass roses', 'faded ink', 'the archive', 'https://archive.example.com/maps?ref=blog', 'Mind the scale.'],
+  ),
+  post(
+    'post-h-noslug',
+    'Unfinished: a post without a slug',
+    null,
+    'author-lena',
+    '2026-06-28T09:00:00Z',
+    JPG,
+    'Empty quay',
+    ['not ready', 'yet', 'nowhere', 'https://example.com/none', ''],
+  ),
+  post(
+    'drafts.post-h-secret',
+    'Secret draft post',
+    'secret-draft-post',
+    'author-kofi',
+    '2026-07-14T09:00:00Z',
+    WEBP,
+    'Hidden',
+    ['draft', 'only', 'hidden', 'https://example.com/hidden', ''],
+  ),
+  post(
+    'drafts.post-h-bread',
+    'Bread for beginners (draft edit)',
+    'bread-for-beginners',
+    'author-kofi',
+    '2026-05-27T16:10:00Z',
+    WEBP,
+    'A round loaf on a board',
+    [...BREAD, 'Draft only.'],
+  ),
 ];
 
 const byId = new Map(HIDDEN.map((d) => [d._id, d]));
@@ -641,14 +144,56 @@ const listed = published.filter((d) => d.slug?.current).sort((a, b) => b.publish
 const notListed = HIDDEN.filter((d) => d._type === 'post' && !listed.includes(d));
 const spans = (post: Doc, mark: string) =>
   post.body.flatMap((b: Doc) => b.children.filter((c: Doc) => c.marks.includes(mark)).map((c: Doc) => c.text));
+/** The plain (unmarked) text of each paragraph, trimmed, so ordinary prose must appear too. */
+const plainTexts = (post: Doc) =>
+  post.body.flatMap((b: Doc) =>
+    b.children
+      .filter((c: Doc) => c.marks.length === 0)
+      .map((c: Doc) => c.text.trim())
+      .filter(Boolean),
+  );
 const linkOf = (post: Doc) => {
   const block = post.body.find((b: Doc) => b.markDefs.length);
   const def = block.markDefs[0];
   return { href: def.href, text: block.children.find((c: Doc) => c.marks.includes(def._key)).text };
 };
-/** `image-<hash>-<w>x<h>-<ext>` → the CDN path without extension, so format changes are accepted. */
-const cdnPath = (assetId: string) =>
-  `cdn.sanity.io/images/abc123/production/${assetId.replace(/^image-/, '').replace(/-[a-z0-9]+$/, '')}`;
+/** True when `url` is a Sanity CDN URL for this asset (`image-<hash>-<w>x<h>-<ext>`): host cdn.sanity.io, path
+ * /images/abc123/production/<hash>-<w>x<h>.<any ext>, any query parameters. */
+const isCdnUrl = (url: string, assetId: string) => {
+  const stem = assetId.replace(/^image-/, '').replace(/-[a-z0-9]+$/, '');
+  try {
+    const u = new URL(url, 'http://invalid.local/');
+    return (
+      u.protocol === 'https:' &&
+      u.hostname === 'cdn.sanity.io' &&
+      new RegExp(`^/images/abc123/production/${stem}\\.[a-z0-9]+$`).test(u.pathname)
+    );
+  } catch {
+    return false;
+  }
+};
+/** src plus every srcset candidate URL. */
+const imageUrls = (src: string | undefined, srcset: string | undefined) => [
+  ...(src ? [src.trim()] : []),
+  ...(srcset ?? '')
+    .split(',')
+    .map((c) => c.trim().split(/\s+/)[0] ?? '')
+    .filter(Boolean),
+];
+/** The origin of the `site` in the agent's Astro config, so absolute links to it count as the site's own. Relative
+ * links always count. Uses Astro's own config resolver (pinned astro), so variables and imports in the config work. */
+const siteOrigin = (() => {
+  const resolver = pathToFileURL(join(process.cwd(), 'node_modules/astro/dist/core/config/index.js')).href;
+  const script = `const { resolveConfig } = await import(${JSON.stringify(resolver)});
+const { astroConfig } = await resolveConfig({ root: process.cwd() }, 'build');
+console.log(JSON.stringify(astroConfig.site ?? ''));`;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 60_000 });
+  try {
+    return new URL(JSON.parse(r.stdout.trim().split('\n').pop()!)).origin;
+  } catch {
+    return undefined;
+  }
+})();
 const text = ($: CheerioAPI, sel: string) => $(sel).text().replace(/\s+/g, ' ').trim();
 
 let build: { status: number | null; output: string };
@@ -686,18 +231,25 @@ test('the site builds with the hidden content', () => {
 });
 
 test('/posts/ lists exactly the published posts with a slug, newest first', () => {
+  expect(build.status, 'the site did not build with the hidden content').toBe(0);
   const $ = readPage(['posts/index.html', 'posts.html']);
   expect($, 'no /posts/ page was built').toBeDefined();
   const slugs: string[] = [];
   $!('a[href]').each((_, a) => {
-    const path = new URL($!(a).attr('href')!, 'http://site/posts/').pathname;
+    const url = new URL($!(a).attr('href')!, 'http://site/posts/');
+    // Links to another site don't count as the site's own post links.
+    if (url.origin !== 'http://site' && url.origin !== siteOrigin) return;
+    const path = url.pathname;
     const slug = path.match(/^\/posts\/([^/]+)\/?$/)?.[1];
     if (slug && !slugs.includes(slug)) slugs.push(slug);
   });
   expect(slugs).toEqual(listed.map((p) => p.slug.current));
+  const listText = text($!, 'body');
+  for (const post of notListed) expect(listText, `${post._id} is shown on /posts/`).not.toContain(post.title);
 });
 
 test('drafts and posts without a slug are not shown', () => {
+  expect(build.status, 'the site did not build with the hidden content').toBe(0);
   const listedSlugs = new Set(listed.map((p) => p.slug.current));
   for (const post of notListed) {
     const slug = post.slug?.current;
@@ -715,6 +267,7 @@ test('drafts and posts without a slug are not shown', () => {
 for (const post of listed) {
   const slug = post.slug.current;
   const page = () => {
+    expect(build.status, 'the site did not build with the hidden content').toBe(0);
     const $ = pages.get(slug);
     expect($, `no page was built at /posts/${slug}/`).toBeDefined();
     return $!;
@@ -743,6 +296,8 @@ for (const post of listed) {
       $(sel)
         .toArray()
         .some((el) => $(el).text().includes(words));
+    const body = text($, 'body');
+    for (const words of plainTexts(post)) expect(body, `paragraph text "${words}"`).toContain(words);
     for (const words of spans(post, 'strong')) expect(within('strong, b', words), `bold "${words}"`).toBe(true);
     for (const words of spans(post, 'em')) expect(within('em, i', words), `italic "${words}"`).toBe(true);
     const link = linkOf(post);
@@ -759,14 +314,14 @@ for (const post of listed) {
   });
   test(`${slug}: main image from the Sanity CDN with its alt text`, () => {
     const $ = page();
-    const want = cdnPath(post.mainImage.asset._ref);
+    const assetId = post.mainImage.asset._ref;
     const ok = $('img')
       .toArray()
       .some(
         (img) =>
           $(img).attr('alt') === post.mainImage.alt &&
-          `${$(img).attr('src') ?? ''} ${$(img).attr('srcset') ?? ''}`.includes(want),
+          imageUrls($(img).attr('src'), $(img).attr('srcset')).some((u) => isCdnUrl(u, assetId)),
       );
-    expect(ok, `<img alt="${post.mainImage.alt}"> with ${want}`).toBe(true);
+    expect(ok, `<img alt="${post.mainImage.alt}"> with a cdn.sanity.io URL for ${assetId}`).toBe(true);
   });
 }
