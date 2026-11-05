@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import plain from './gpt-5.6-terra.ts';
 import hinted, { SLUG_HINT } from './gpt-5.6-terra-slug-hint.ts';
+import plain from './gpt-5.6-terra.ts';
 
 const prompt = readFileSync(new URL('../evals/sanity-schema/PROMPT.md', import.meta.url), 'utf8');
 
