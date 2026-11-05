@@ -9,11 +9,16 @@ test('the plain experiment leaves the prompt alone', () => {
   expect(plain.editPrompt).toBeUndefined();
 });
 
-test('the hint experiment adds exactly the hint as a final paragraph and changes nothing else', () => {
-  const edited = hinted.editPrompt!(prompt);
-  expect(edited).toBe(`${prompt.trimEnd()}\n\n${SLUG_HINT}\n`);
-  expect(edited.startsWith(prompt.trimEnd())).toBe(true);
-  const { editPrompt: _a, ...hintRest } = hinted;
-  const { editPrompt: _b, ...plainRest } = plain;
-  expect(JSON.stringify(hintRest)).toBe(JSON.stringify(plainRest));
+test('the hint experiment adds exactly the hint as a final paragraph', () => {
+  expect(hinted.editPrompt!(prompt)).toBe(`${prompt.trimEnd()}\n\n${SLUG_HINT}\n`);
+});
+
+test('apart from editPrompt, the two arms have the same keys, the same functions and equal values', () => {
+  const { editPrompt: _a, ...h } = hinted as Record<string, unknown>;
+  const p = plain as Record<string, unknown>;
+  expect(Object.keys(h).sort()).toEqual(Object.keys(p).sort());
+  for (const key of Object.keys(p)) {
+    if (typeof p[key] === 'function') expect(h[key], key).toBe(p[key]); // same function object, e.g. setup, onRunComplete
+    else expect(h[key], key).toStrictEqual(p[key]);
+  }
 });
