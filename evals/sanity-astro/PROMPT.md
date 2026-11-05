@@ -6,4 +6,4 @@ Our Astro site should show the blog posts our editors write in Sanity (project `
 
 The site is built statically and shows published content only; draft previews are out of scope. Show images from Sanity's image CDN; don't download or optimise them at build time.
 
-`npm run build` builds the site against a local copy of the content API with the example content in `data/sample.ndjson`, so no live project or credentials are needed. Make sure it passes. Everything you need is installed: don't add or change dependencies, and don't change `tsconfig.json` or `scripts/`.
+`npm run build` builds the site against a local stand-in for Sanity's query API (GROQ queries, answered as an anonymous visitor sees published content) serving the example content in `data/sample.ndjson`, so no live project or credentials are needed. Fetch the content through that query API, and make sure the build passes. Everything you need is installed: don't add or change dependencies, and don't change `tsconfig.json` or `scripts/`.

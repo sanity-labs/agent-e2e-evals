@@ -197,6 +197,7 @@ console.log(JSON.stringify(astroConfig.site ?? ''));`;
 const text = ($: CheerioAPI, sel: string) => $(sel).text().replace(/\s+/g, ' ').trim();
 
 let build: { status: number | null; output: string };
+let queries = 0;
 const pages = new Map<string, CheerioAPI | undefined>();
 const readPage = (rel: string[]) => {
   const file = rel.map((r) => join('dist', r)).find(existsSync);
@@ -220,14 +221,17 @@ beforeAll(() => {
     `hidden-data build exit ${r.status}${r.error ? ` (${r.error.message})` : ''}; ${requests.length} API requests`,
   );
   for (const line of requests) console.log(`request: ${line.slice(0, 300)}`);
+  queries = requests.filter((line) => JSON.parse(line).ok).length;
   for (const post of HIDDEN.filter((d) => d._type === 'post' && d.slug?.current)) {
     const slug = post.slug.current;
     pages.set(slug, readPage([`posts/${slug}/index.html`, `posts/${slug}.html`]));
   }
 }, 660_000);
 
-test('the site builds with the hidden content', () => {
+test('the site builds with the hidden content, fetched through the query API', () => {
   expect(build.status, build.output).toBe(0);
+  // The prompt asks for content through the query API; reading the sample data file directly bypasses it.
+  expect(queries, 'no successful query reached the local Sanity query API').toBeGreaterThan(0);
 });
 
 test('/posts/ lists exactly the published posts with a slug, newest first', () => {
