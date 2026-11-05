@@ -11,6 +11,7 @@
  * many attempts run at once, and checks OpenRouter spend before each starts.
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -94,6 +95,8 @@ interface Attempt {
   outputDir?: string;
   /** Set when the attempt reached the pre-deadline snapshot time: a never-graded diagnostic (pre-deadline-snapshot.ts). */
   timeoutDiagnostic?: { path: string; status: string };
+  /** SHA-256 of the prompt this attempt sends (after any experiment editPrompt), so prompt arms can be verified. */
+  promptSha256?: string;
   skipped?: string;
   error?: string;
 }
@@ -218,7 +221,9 @@ for (let run = 1; run <= runs; run++) {
     for (const evalName of evalNames) {
       const fixture = fixtureFor(evalName);
       jobs.push(async () => {
-        const attempt: Attempt = { experiment, eval: evalName, run, invocations: [] };
+        const prompt = config.editPrompt ? config.editPrompt(fixture.prompt) : fixture.prompt;
+        const promptSha256 = createHash('sha256').update(prompt).digest('hex');
+        const attempt: Attempt = { experiment, eval: evalName, run, promptSha256, invocations: [] };
         manifest.attempts.push(attempt);
         saveManifest(); // on disk before any model call, so a stopped machine can't hide a started attempt
         // A soft stop: attempts already running finish, and their cost shows in the end total.

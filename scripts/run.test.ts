@@ -4,11 +4,13 @@
  * before an agent starts, so nothing here touches the network or a model.
  */
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, expect, test, vi } from 'vitest';
+import { SLUG_HINT } from '../experiments/gpt-5.6-terra-slug-hint.ts';
 
 // Each test starts a real run.ts child process, which loads the agent-eval runner (5–18s on slow machines).
 vi.setConfig({ testTimeout: 60_000 });
@@ -73,7 +75,7 @@ async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<stri
       projectFiles,
       manifest: JSON.parse(raw) as {
         stopped: string | null;
-        attempts: Array<{ skipped?: string; experiment: string; run: number }>;
+        attempts: Array<{ skipped?: string; experiment: string; run: number; promptSha256?: string }>;
         stagingProjectsNewlyObserved: Array<{ id: string }> | null;
       },
     };
@@ -120,6 +122,17 @@ test('paired experiments alternate round by round instead of running as two bloc
     'claude-haiku-5.5#2',
     'claude-haiku-5.5-skills#2',
   ]);
+});
+
+test('each attempt records the hash of the prompt it sends, including an experiment prompt suffix', async () => {
+  const result = await run('cap', ['experiments/gpt-5.6-terra-slug-hint.ts']);
+  if (!('manifest' in result) || !result.manifest)
+    throw new Error(`run failed: ${'error' in result ? result.error : ''}`);
+  const prompt = readFileSync(join(root, 'evals/sanity-typegen/PROMPT.md'), 'utf8');
+  const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+  const bySha = Object.fromEntries(result.manifest.attempts.map((a) => [a.experiment, a.promptSha256]));
+  expect(bySha['claude-haiku-5.5']).toBe(sha(prompt));
+  expect(bySha['gpt-5.6-terra-slug-hint']).toBe(sha(`${prompt.trimEnd()}\n\n${SLUG_HINT}\n`));
 });
 
 test("David's $750 monthly stop stops new attempts", async () => {

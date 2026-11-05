@@ -32,9 +32,19 @@ const KEY_PLACEHOLDER = '{env:AI_GATEWAY_API_KEY}';
  */
 const OPENCODE_CONFIG_CONTENT = JSON.stringify({ snapshot: false });
 
-/** `skills` installs Sanity's best-practices skill; `skill` names a different agent-toolkit skill instead. */
-export function openRouterExperiment(options: { model: string; skills?: boolean; skill?: string }): ExperimentConfig {
+/**
+ * `skills` installs Sanity's best-practices skill; `skill` names a different agent-toolkit skill instead.
+ * `promptSuffix` adds one paragraph to the end of the task prompt, unchanged (a docs-hint test arm).
+ */
+export function openRouterExperiment(options: {
+  model: string;
+  skills?: boolean;
+  skill?: string;
+  promptSuffix?: string;
+}): ExperimentConfig {
+  const { promptSuffix } = options;
   return {
+    ...(promptSuffix ? { editPrompt: (prompt: string) => `${prompt.trimEnd()}\n\n${promptSuffix}\n` } : {}),
     agent: 'vercel-ai-gateway/opencode',
     model: `openrouter/${options.model}`,
     agentOptions: {
