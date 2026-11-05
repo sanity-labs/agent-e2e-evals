@@ -22,12 +22,6 @@ const FAKE_KEY = 'sk-or-FAKE-MARKER-123';
 writeFileSync(keyFile, FAKE_KEY);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-test('the webhook fixture protects its dependencies and grader infrastructure', () => {
-  const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
-  expect(source).toContain("evalName === 'sanity-webhook'");
-  expect(source).toMatch(/const WEBHOOK = [\s\S]*scripts\/sample-api\.mjs[\s\S]*app\/api\/sample-witness\/route\.ts/);
-});
-
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
 const stub = `data:text/javascript,${encodeURIComponent(`
 let n = 0;

@@ -15,11 +15,11 @@ const makePost = (id: string, slug: string, title: string): Doc => ({
   slug: { _type: 'slug', current: slug },
 });
 const X = 'hidden-webhook-post';
-const A = [makePost('post-x', X, 'Alpine observatory'), makePost('post-y', 'quiet-forest', 'Quiet forest')];
-const B = [makePost('post-x', X, 'Bright observatory'), makePost('post-y', 'quiet-forest', 'Quiet forest')];
+const titleA = 'Alpine observatory';
+const titleB = 'Bright observatory';
+const A = [makePost('post-x', X, titleA), makePost('post-y', 'quiet-forest', 'Quiet forest')];
+const B = [makePost('post-x', X, titleB), makePost('post-y', 'quiet-forest', 'Quiet forest')];
 const SECRET = 'grader-webhook-secret-8e4c';
-const titleA = A[0].title;
-const titleB = B[0].title;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const ndjson = (docs: Doc[]) => `${docs.map((doc) => JSON.stringify(doc)).join('\n')}\n`;
 const freePort = () =>
@@ -37,7 +37,21 @@ const signature = (raw: string, secret: string) => {
   const digest = createHmac('sha256', secret).update(`${timestamp}.${raw}`).digest('base64url');
   return `t=${timestamp},v1=${digest}`;
 };
-const extractTitles = (html: string) => [...html.matchAll(/data-title="([^"]+)"/g)].map((match) => match[1]);
+const okQueries = (log: string) =>
+  existsSync(log)
+    ? readFileSync(log, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .filter((line) => JSON.parse(line).ok).length
+    : 0;
+// Text content only (not a browser visibility check): drop scripts (Next's RSC payload repeats the data), styles, comments and tags, so attributes don't count.
+const visibleText = (html: string) =>
+  html
+    .replace(/<(script|style|template)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ');
 
 let build = { status: null as number | null, output: '', queries: 0 };
 const results: Record<string, unknown> = {};
@@ -46,10 +60,21 @@ let temp = '';
 
 async function start(data: string, log: string, withSecret: boolean) {
   const port = await freePort();
-  const env = { ...process.env, PORT: String(port), SAMPLE_API_DATA: data, SAMPLE_API_LOG: log };
+  // Same env as the fixture's start script; Next runs in its own process group so stop() also ends its server child.
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NEXT_TELEMETRY_DISABLED: '1',
+    NODE_OPTIONS: '--import=./scripts/sample-api.mjs',
+    SAMPLE_API_DATA: data,
+    SAMPLE_API_LOG: log,
+  };
   if (withSecret) env.SANITY_REVALIDATE_SECRET = SECRET;
   else delete env.SANITY_REVALIDATE_SECRET;
-  const child = spawn('npm', ['run', 'start', '--', '-p', String(port)], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port)], {
+    env,
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   children.push(child);
   let output = '';
   child.stdout?.on('data', (chunk) => {
@@ -70,17 +95,27 @@ async function start(data: string, log: string, withSecret: boolean) {
   }
   throw new Error(`next start was not ready: ${output.slice(-2000)}`);
 }
+const signalGroup = (child: ChildProcess, signal: NodeJS.Signals) => {
+  try {
+    if (child.pid) process.kill(-child.pid, signal);
+  } catch {
+    /* group already gone */
+  }
+};
 async function stop(child: ChildProcess) {
-  if (child.exitCode === null) child.kill('SIGTERM');
-  for (let i = 0; i < 50 && child.exitCode === null; i++) await sleep(20);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  signalGroup(child, 'SIGTERM');
+  for (let i = 0; i < 50 && child.exitCode === null && child.signalCode === null; i++) await sleep(20);
+  signalGroup(child, 'SIGKILL');
 }
 const readPages = async (base: string) => ({
-  list: extractTitles(await (await fetch(`${base}/posts`)).text()),
-  post: extractTitles(await (await fetch(`${base}/posts/${X}`)).text()),
+  list: visibleText(await (await fetch(`${base}/posts`)).text()),
+  post: visibleText(await (await fetch(`${base}/posts/${X}`)).text()),
 });
-const isTitle = (pages: Awaited<ReturnType<typeof readPages>>, title: string) =>
-  pages.list.includes(title) && pages.post.includes(title);
+// Both pages show this version's title and neither shows the other version's.
+const isTitle = (pages: Awaited<ReturnType<typeof readPages>>, title: string) => {
+  const other = title === titleA ? titleB : titleA;
+  return [pages.list, pages.post].every((text) => text.includes(title) && !text.includes(other));
+};
 async function repeated(base: string, title: string) {
   const reads = [];
   for (let i = 0; i < 5; i++) {
@@ -107,18 +142,16 @@ beforeAll(async () => {
     encoding: 'utf8',
     timeout: 90_000,
   });
-  const lines = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : [];
-  build = {
-    status: built.status,
-    output: `${built.stdout}\n${built.stderr}`.slice(-5000),
-    queries: lines.filter((line) => JSON.parse(line).ok).length,
-  };
-  if (build.status !== 0 || build.queries === 0) return;
+  build = { status: built.status, output: `${built.stdout}\n${built.stderr}`.slice(-5000), queries: 0 };
+  if (build.status !== 0) return;
   const clean = join(temp, 'clean-next');
   cpSync('.next', clean, { recursive: true });
 
   const first = await start(data, log, true);
   const initial = await readPages(first.base);
+  // Content must come through the query API, at build time or on these first reads (before the witness route queries it).
+  build.queries = okQueries(log);
+  if (build.queries === 0) return;
   results.initial = isTitle(initial, titleA);
   writeFileSync(data, ndjson(B));
   const witness = (await (await fetch(`${first.base}/api/sample-witness?slug=${X}`)).json()) as { title?: string };
@@ -177,9 +210,12 @@ afterAll(async () => {
 
 const buildGate = () => {
   expect(build.status, build.output).toBe(0);
-  expect(build.queries, 'no successful query reached the local Sanity query API').toBeGreaterThan(0);
+  expect(
+    build.queries,
+    'no successful query reached the local Sanity query API during the build or the first page reads',
+  ).toBeGreaterThan(0);
 };
-test('0: builds with hidden content fetched through the query API', buildGate);
+test('0: builds, and hidden content is fetched through the query API', buildGate);
 test('1: starts with hidden A content on the list and post pages', () => {
   buildGate();
   expect(results.initial).toBe(true);
