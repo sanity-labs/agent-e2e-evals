@@ -60,13 +60,16 @@ let source, S
 try {
   source = await sanity.createSourceFromConfig({basePath: '/', ...cfg, currentUser, getClient: ({apiVersion}) => client.withConfig({apiVersion})})
 } catch (e) { done({status: offline(e) ? 'unknown' : 'fail', reason: (offline(e) ? 'the config reads the dataset while loading, which the offline grader cannot serve: ' : 'the Studio config does not resolve: ') + why(e)}) }
-const tools = source.tools.filter((t) => t.name === 'structure' || (t.options && ('structure' in t.options || 'defaultDocumentNode' in t.options)))
+// Every structure tool, renamed or not, shares the native component (one object at the pinned version).
+const structureComponent = structure.structureTool().tools[0].component
+const tools = source.tools.filter((t) => t.component === structureComponent)
 if (!tools.length) done({status: 'fail', reason: 'the Studio has no structure tool, so editors have no sidebar'})
 const templateType = (id) => source.templates.find((t) => t.id === id)?.schemaType
 const nodes = []
+let truncated = false
 const settle = async (v) => { v = await v; if (v && typeof v.subscribe === 'function') v = await new Promise((res, rej) => v.subscribe({next: res, error: rej})); return v }
 async function walk(value, id, parent, index, path, depth) {
-  if (depth > 8 || nodes.length > 400) return
+  if (depth > 8 || nodes.length > 400) { truncated = true; return }
   if (typeof value === 'function') value = await value(id, {parent, index, splitIndex: 0, path, params: {}, structureContext: S.context})
   value = await settle(value)
   value = value && value.serialize ? value.serialize({path}) : value
@@ -97,6 +100,8 @@ try {
     await walk(root, 'root', null, 0, [tool.name], 0)
   }
 } catch (e) { done({status: offline(e) ? 'unknown' : 'fail', reason: (offline(e) ? 'the sidebar reads the dataset, which the offline grader cannot serve: ' : 'the sidebar could not be resolved: ') + why(e)}) }
+// A partial walk has not seen every create surface, so it cannot pass.
+if (truncated) done({status: 'unknown', reason: 'the sidebar is deeper than 8 levels or has more than 400 panes, which the grader does not walk'})
 const global = source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId)
 const settingsCreate = [{where: 'the global create menu', ids: global}, ...nodes.map((n) => ({where: n.type + ' ' + n.path, ids: n.create}))]
   .filter((c) => c.ids.some((id) => templateType(id) === 'siteSettings')).map((c) => c.where)
@@ -205,6 +210,8 @@ test.each(ORDINARY)('editors can still create %s documents and browse every exis
     `the global create menu offers no ${type}: ${JSON.stringify(result.global)}`,
   ).toBeGreaterThan(0);
   const want = DATASET.filter((d) => d._type === type).map((d) => d._id);
-  const shown = nodes().some((n) => n.type === 'documentList' && want.every((id) => n.listed?.includes(id)));
-  expect(shown, `no sidebar list shows all of ${want.join(', ')}; lists reached: ${lists().join(' | ')}`).toBe(true);
+  // Editors may split a type over several lists, so the reached lists together must show every document.
+  const shown = new Set(nodes().flatMap((n) => (n.type === 'documentList' ? (n.listed ?? []) : [])));
+  const missing = want.filter((id) => !shown.has(id));
+  expect(missing, `no sidebar list shows ${missing.join(', ')}; lists reached: ${lists().join(' | ')}`).toEqual([]);
 });
