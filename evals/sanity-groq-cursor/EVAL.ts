@@ -150,6 +150,37 @@ const CASES: Case[] = [
       post('g3un', null),
     ],
   },
+  {
+    name: 'posts are created and deleted before every later page, including in the undated tail',
+    docs: [
+      post('d01', at(28)),
+      post('d02', at(27)),
+      post('d03', at(26)),
+      post('d04', at(25)),
+      post('d05', at(24)),
+      post('d06', at(23)),
+      post('d07', at(22)),
+      post('d08', at(21)),
+      post('d09', at(20)),
+      post('d10', at(19)),
+      post('d11', at(18)),
+      post('d12', at(16)),
+      post('u90', null),
+      post('u80', null),
+      post('u70', null),
+      post('u60', null),
+      post('u50', null),
+      post('u40', null),
+      post('u30', null),
+      post('u20', null),
+    ],
+    changes: [
+      { beforePage: 3, remove: ['d07'], add: [post('d115', at(17))] },
+      { beforePage: 4, remove: ['u90'], add: [post('u35', null)] },
+      { beforePage: 5, remove: ['u50'], add: [post('u10', null)] },
+      { beforePage: 6, remove: ['u30'], add: [post('u05', null)] },
+    ],
+  },
   { name: 'no posts at all', docs: [other('author-1', 'author', at(30)), other('page-1', 'page', at(20))] },
 ];
 
@@ -270,7 +301,7 @@ async function walk(c: Case, js: string): Promise<{ ok: boolean; log: string[] }
     }
     return fail('no empty page after 12 pages');
   } finally {
-    child.kill();
+    child.kill('SIGKILL');
     rmSync(dir, { recursive: true, force: true });
   }
 }
