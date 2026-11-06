@@ -1,11 +1,13 @@
 /**
  * Offline grader for sanity-singletons: three fixed documents in an existing Studio. Loads sanity.config.ts through
- * jiti, resolves the whole Studio offline with createSourceFromConfig (a fake signed-in user, a client pointed at a
+ * jiti, resolves every workspace offline with createSourceFromConfig (a fake signed-in user, a client pointed at a
  * closed local port), walks every structure tool's sidebar the way the Studio does (child resolvers included), then
- * asks the Studio's own resolvers: new-document options in the global menu, in every reached list and in every reached
- * document pane; document actions; and the initial value of each fixed campaign pane, resolved with the template that
- * pane would pick (its own template, otherwise the type's only template). Lists are checked with groq-js against
- * hidden sample documents using each list's own filter and params, so a list that shows nothing does not count.
+ * asks the Studio's own resolvers: new-document options in the global menu, in every reached list (menu create items
+ * included) and in every reached document pane; document actions; and the initial value of each fixed campaign pane,
+ * resolved with the template that pane would pick (its own template, otherwise the type's only template). Lists are
+ * checked with groq-js against hidden sample documents using each list's own filter and params, and a row counts only
+ * if opening it opens that document. A config or sidebar that queries the dataset, or a custom action on site settings
+ * the grader cannot identify, ends as UNKNOWN.
  * Any method passes: the built-in singletons API or a hand-built setup. A message starting "UNKNOWN (" means the
  * grader could not observe the attempt, not that the agent failed.
  * Not graded: rendering, titles, ordering, delete, and documents opened from a list rather than a fixed sidebar item.
@@ -47,26 +49,38 @@ try {
   const {JSDOM} = await import('jsdom'); globalThis.window = new JSDOM('').window
 } catch (e) { done({status: 'unknown', reason: 'the grader could not load jsdom, jiti, sanity or groq-js: ' + e.message}) }
 const why = (e) => [e && e.message, ...((e && e.causes) || []).map((c) => c && c.message)].filter(Boolean).join('; ').slice(0, 600)
-let cfg
+let cfgs
 try {
   const mod = await createJiti(import.meta.url, {jsx: true, interopDefault: true}).import('./sanity.config.ts')
   const raw = mod && mod.default !== undefined ? mod.default : mod
-  cfg = Array.isArray(raw) ? raw[0] : raw
+  cfgs = Array.isArray(raw) ? raw : [raw]
 } catch (e) { done({status: 'fail', reason: 'sanity.config.ts could not be loaded: ' + why(e)}) }
 const currentUser = {id: 'u1', name: 'Eval', email: 'eval@example.invalid', role: 'administrator', roles: [{name: 'administrator', title: 'Administrator'}]}
 const client = createClient({projectId: 'offline', dataset: 'production', apiVersion: '2025-01-01', useCdn: false, apiHost: 'http://127.0.0.1:65535'})
+// Any dataset request means the sidebar or config depends on data, which this empty offline dataset cannot represent.
+let queried = ''
+const watch = (c) => new Proxy(c, {get(t, k) {
+  const v = Reflect.get(t, k)
+  if (k === 'withConfig' || k === 'clone') return (...a) => watch(v.apply(t, a))
+  if (k === 'observable') return watch(v)
+  if (typeof v === 'function' && /^(fetch|listen|getDocuments?)$/.test(String(k))) return (...a) => { queried ||= String(k); return v.apply(t, a) }
+  return typeof v === 'function' ? v.bind(t) : v
+}})
+const getClient = ({apiVersion}) => watch(client.withConfig({apiVersion}))
 const offline = (e) => /ECONNREFUSED|fetch failed|127\\.0\\.0\\.1:65535/.test(why(e))
 let source, S
+const nodes = [], allGlobal = [], allActions = [], allTemplates = []
+let truncated = false, builtIn = false
+for (const [wi, cfg] of cfgs.entries()) {
 try {
-  source = await sanity.createSourceFromConfig({basePath: '/', ...cfg, currentUser, getClient: ({apiVersion}) => client.withConfig({apiVersion})})
+  source = await sanity.createSourceFromConfig({basePath: '/', ...cfg, currentUser, getClient})
 } catch (e) { done({status: offline(e) ? 'unknown' : 'fail', reason: (offline(e) ? 'the config reads the dataset while loading, which the offline grader cannot serve: ' : 'the Studio config does not resolve: ') + why(e)}) }
 // Every structure tool, renamed or not, shares the native component (one object at the pinned version).
 const structureComponent = structure.structureTool().tools[0].component
 const tools = source.tools.filter((t) => t.component === structureComponent)
 if (!tools.length) done({status: 'fail', reason: 'the Studio has no structure tool, so editors have no sidebar'})
-const templateType = (id) => source.templates.find((t) => t.id === id)?.schemaType
-const nodes = []
-let truncated = false
+allTemplates.push(...source.templates)
+builtIn ||= (source.document.singletons || []).length > 0
 const settle = async (v) => { v = await v; if (v && typeof v.subscribe === 'function') v = await new Promise((res, rej) => v.subscribe({next: res, error: rej})); return v }
 async function walk(value, id, parent, index, path, depth) {
   if (depth > 8 || nodes.length > 400) { truncated = true; return }
@@ -75,7 +89,7 @@ async function walk(value, id, parent, index, path, depth) {
   value = value && value.serialize ? value.serialize({path}) : value
   if (!value || typeof value !== 'object') return
   const node = {path: path.join('/'), type: value.type, schemaTypeName: value.schemaTypeName, options: value.options,
-    create: (value.initialValueTemplates || []).map((t) => t.templateId)}
+    create: [...(value.initialValueTemplates || []).map((t) => t.templateId), ...(value.menuItems || []).filter((m) => m.intent && m.intent.type === 'create').map((m) => (m.intent.params && (m.intent.params.template || m.intent.params.type)) || '?')]}
   nodes.push(node)
   if (value.type === 'document') {
     const o = value.options || {}
@@ -90,6 +104,16 @@ async function walk(value, id, parent, index, path, depth) {
   if (value.type === 'documentList') {
     const result = await groq.evaluate(groq.parse('*[' + (value.options?.filter || 'false') + ']'), {dataset, params: value.options?.params || {}})
     node.listed = (await result.get()).map((d) => d._id)
+    if (typeof value.child === 'function') {
+      node.rowOpens = []
+      for (const id of node.listed) {
+        try {
+          let c = await settle(await value.child(id, {parent: value, index: 0, splitIndex: 0, path: [...path, id], params: {}, structureContext: S.context}))
+          c = c && c.serialize ? c.serialize({path: [...path, id]}) : c
+          node.rowOpens.push([id, c && c.options ? c.options.id : null])
+        } catch (e) { node.rowOpens.push([id, 'error: ' + why(e)]) }
+      }
+    }
   }
   for (const [i, item] of (value.items || []).entries()) if (item && item.child) await walk(item.child, item.id, value, i, [...path, item.id], depth + 1)
 }
@@ -97,16 +121,24 @@ try {
   for (const tool of tools) {
     S = structure.createStructureBuilder({source, defaultDocumentNode: tool.options?.defaultDocumentNode})
     const root = tool.options?.structure ? await settle(tool.options.structure(S, S.context)) : S.defaults()
-    await walk(root, 'root', null, 0, [tool.name], 0)
+    await walk(root, 'root', null, 0, [cfg.name || String(wi), tool.name], 0)
   }
 } catch (e) { done({status: offline(e) ? 'unknown' : 'fail', reason: (offline(e) ? 'the sidebar reads the dataset, which the offline grader cannot serve: ' : 'the sidebar could not be resolved: ') + why(e)}) }
 // A partial walk has not seen every create surface, so it cannot pass.
+allGlobal.push(...source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId))
+// 4. actions: built-ins are named; anything else this config adds or wraps is unidentified
+const plain = await sanity.createSourceFromConfig({basePath: '/', ...cfg, document: {...(cfg.document || {}), actions: undefined}, currentUser, getClient})
+const builtin = plain.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'})
+allActions.push(...source.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'}).map((a) => a.action || (builtin.includes(a) ? a.name : 'unidentified:' + (a.name || 'anonymous'))))
+}
+const templateType = (id) => id === '?' ? '?' : (allTemplates.find((t) => t.id === id)?.schemaType || id)
 if (truncated) done({status: 'unknown', reason: 'the sidebar is deeper than 8 levels or has more than 400 panes, which the grader does not walk'})
-const global = source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId)
+if (queried) done({status: 'unknown', reason: 'the config or sidebar queries the dataset (client.' + queried + '), so it can change once documents exist, which the offline grader cannot serve'})
+const global = allGlobal
 const settingsCreate = [{where: 'the global create menu', ids: global}, ...nodes.map((n) => ({where: n.type + ' ' + n.path, ids: n.create}))]
-  .filter((c) => c.ids.some((id) => templateType(id) === 'siteSettings')).map((c) => c.where)
-const actions = source.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'}).map((a) => a.action || a.name || 'custom')
-done({status: 'ok', builtIn: (source.document.singletons || []).length > 0, global: global.map((id) => ({id, type: templateType(id)})),
+  .filter((c) => c.ids.some((id) => templateType(id) === 'siteSettings' || templateType(id) === '?')).map((c) => c.where)
+const actions = allActions
+done({status: 'ok', builtIn, global: global.map((id) => ({id, type: templateType(id)})),
   settingsCreate, actions, nodes})
 `;
 
@@ -192,6 +224,8 @@ test('editors are not offered a new site settings document anywhere', () => {
 test('the site settings document cannot be duplicated', () => {
   resolved();
   expect(result.actions, `actions on siteSettings: ${result.actions?.join(', ')}`).not.toContain('duplicate');
+  const odd = (result.actions ?? []).filter((a: string) => a.startsWith('unidentified:'));
+  if (odd.length) expect.fail(`UNKNOWN (custom actions on siteSettings the grader cannot identify: ${odd.join(', ')})`);
 });
 
 test.each(FIXED.filter((f) => f.season))('the $id document starts with season $season', ({ id, season }) => {
@@ -211,7 +245,12 @@ test.each(ORDINARY)('editors can still create %s documents and browse every exis
   ).toBeGreaterThan(0);
   const want = DATASET.filter((d) => d._type === type).map((d) => d._id);
   // Editors may split a type over several lists, so the reached lists together must show every document.
-  const shown = new Set(nodes().flatMap((n) => (n.type === 'documentList' ? (n.listed ?? []) : [])));
+  // A listed row counts only if clicking it opens that same document.
+  const opens = (n: Obj, id: string) =>
+    !n.rowOpens || n.rowOpens.some(([r, got]: [string, string]) => r === id && got === id);
+  const shown = new Set(
+    nodes().flatMap((n) => (n.type === 'documentList' ? (n.listed ?? []).filter((id: string) => opens(n, id)) : [])),
+  );
   const missing = want.filter((id) => !shown.has(id));
   expect(missing, `no sidebar list shows ${missing.join(', ')}; lists reached: ${lists().join(' | ')}`).toEqual([]);
 });
