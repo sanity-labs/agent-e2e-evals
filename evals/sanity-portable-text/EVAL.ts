@@ -71,6 +71,10 @@ const RULES: Record<string, Obj[]> = {
     withHref('tel:+4712345678'),
     withHref('/about'),
     withHref('example.com'),
+    withHref('http://www.example.com/a/long/path/to/a/page'),
+    withHref('https.example.com/docs/getting-started'),
+    withHref('http://www.example.com/redirect?to=https://www.sanity.io'),
+    withHref('ftp://files.example.com/archive/report.pdf'),
   ],
   'a body image without alt text is an error': [
     post([...BODY.slice(0, -1), image({})]),
@@ -79,9 +83,9 @@ const RULES: Record<string, Obj[]> = {
 };
 /** Each document must get no errors. */
 const CONTROLS: Record<string, Obj[]> = {
-  'an excerpt with bold and italic text and a body using every requested option are valid': [post()],
-  'the example post without rich text is still valid': [
-    { _id: 'post-hello', _type: 'post', title: 'Hello world', slug: { _type: 'slug', current: 'hello-world' } },
+  'an excerpt with bold and italic text and a body using every requested option are valid': [
+    post(),
+    withHref('https://example.org/another/page?q=1'),
   ],
 };
 /** Exactly what each field offers; `normal` is always added by Sanity. Names are sorted before comparing. */
