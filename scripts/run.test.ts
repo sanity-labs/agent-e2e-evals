@@ -42,6 +42,12 @@ test('the Portable Text fixture replays only the Studio config and schema types 
   );
 });
 
+test('the singletons fixture protects its dependencies and tsconfig like the schema task', () => {
+  const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
+  expect(source).toContain("evalName === 'sanity-singletons'");
+  expect(source).toContain('const SINGLETONS = SCHEMA;');
+});
+
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
 const stub = `data:text/javascript,${encodeURIComponent(`
 let n = 0;

@@ -205,6 +205,9 @@ const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
 const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
 // The Portable Text task grades only the Studio config and schema types; every other change is reported as tampering.
 const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };
+// The singletons task may add any Studio files (a structure folder, a plugin), so only dependencies and tsconfig.json
+// are protected, as in the schema task.
+const SINGLETONS = SCHEMA;
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -276,7 +279,9 @@ for (let run = 1; run <= runs; run++) {
                               ? GROQCURSOR
                               : evalName === 'sanity-portable-text'
                                 ? PORTABLETEXT
-                                : {}),
+                                : evalName === 'sanity-singletons'
+                                  ? SINGLETONS
+                                  : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
