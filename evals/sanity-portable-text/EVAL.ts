@@ -36,7 +36,7 @@ const CORPUS = [
   },
 ];
 const EXCERPT = [text('e1', [span('Bold ', ['strong'], 's1'), span('and italic', ['em'], 's2')])];
-const BODY = [
+const BODY: Obj[] = [
   text('b1', [
     span('Plain, '),
     span('bold, ', ['strong'], 's2'),
@@ -267,7 +267,7 @@ const OFFERED = Object.entries(EXPECTED).flatMap(([field, sets]) =>
 test.each(OFFERED)('the %s editor offers exactly the requested %s', (field, group) => {
   schemaReady();
   const got = [...(result.offered?.[field]?.[group] ?? [])].sort();
-  expect(got, `${field} offers ${group}: ${JSON.stringify(got)}`).toEqual(EXPECTED[field][group]);
+  expect(got, `${field} offers ${group}: ${JSON.stringify(got)}`).toEqual(EXPECTED[field]![group]);
 });
 
 test.each(Object.keys(RULES))('%s', (name) => {
