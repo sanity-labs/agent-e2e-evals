@@ -69,7 +69,7 @@ const watch = (c) => new Proxy(c, {get(t, k) {
 const getClient = ({apiVersion}) => watch(client.withConfig({apiVersion}))
 const offline = (e) => /ECONNREFUSED|fetch failed|127\\.0\\.0\\.1:65535/.test(why(e))
 let source, S
-const nodes = [], allGlobal = [], allActions = [], allTemplates = []
+const nodes = [], allGlobal = [], allActions = []
 let truncated = false, builtIn = false
 for (const [wi, cfg] of cfgs.entries()) {
 try {
@@ -79,7 +79,9 @@ try {
 const structureComponent = structure.structureTool().tools[0].component
 const tools = source.tools.filter((t) => t.component === structureComponent)
 if (!tools.length) done({status: 'fail', reason: 'the Studio has no structure tool, so editors have no sidebar'})
-allTemplates.push(...source.templates)
+// Template ids are local to a workspace, so each id is resolved to its type in the workspace that offers it.
+const typed = (ids) => ids.map((id) => ({id, type: id === '?' ? '?' : source.templates.find((t) => t.id === id)?.schemaType || id}))
+const firstNode = nodes.length
 builtIn ||= (source.document.singletons || []).length > 0
 const settle = async (v) => { v = await v; if (v && typeof v.subscribe === 'function') v = await new Promise((res, rej) => v.subscribe({next: res, error: rej})); return v }
 async function walk(value, id, parent, index, path, depth) {
@@ -89,7 +91,7 @@ async function walk(value, id, parent, index, path, depth) {
   value = value && value.serialize ? value.serialize({path}) : value
   if (!value || typeof value !== 'object') return
   const node = {path: path.join('/'), type: value.type, schemaTypeName: value.schemaTypeName, options: value.options,
-    create: [...(value.initialValueTemplates || []).map((t) => t.templateId), ...(value.menuItems || []).filter((m) => m.intent && m.intent.type === 'create').map((m) => (m.intent.params && (m.intent.params.template || m.intent.params.type)) || '?')]}
+    create: [...(value.initialValueTemplates || []).map((t) => t.templateId), ...(value.menuItems || []).filter((m) => m.intent && m.intent.type === 'create').map((m) => { const p = Array.isArray(m.intent.params) ? m.intent.params[0] : m.intent.params; return (p && (p.template || p.type)) || '?' })]}
   nodes.push(node)
   if (value.type === 'document') {
     const o = value.options || {}
@@ -104,11 +106,12 @@ async function walk(value, id, parent, index, path, depth) {
   if (value.type === 'documentList') {
     const result = await groq.evaluate(groq.parse('*[' + (value.options?.filter || 'false') + ']'), {dataset, params: value.options?.params || {}})
     node.listed = (await result.get()).map((d) => d._id)
-    if (typeof value.child === 'function') {
+    if (value.child) {
       node.rowOpens = []
       for (const id of node.listed) {
         try {
-          let c = await settle(await value.child(id, {parent: value, index: 0, splitIndex: 0, path: [...path, id], params: {}, structureContext: S.context}))
+          // A list's child is a resolver called with the row id, or one fixed builder for every row.
+          let c = await settle(typeof value.child === 'function' ? await value.child(id, {parent: value, index: 0, splitIndex: 0, path: [...path, id], params: {}, structureContext: S.context}) : value.child)
           c = c && c.serialize ? c.serialize({path: [...path, id]}) : c
           node.rowOpens.push([id, c && c.options ? c.options.id : null])
         } catch (e) { node.rowOpens.push([id, 'error: ' + why(e)]) }
@@ -125,20 +128,20 @@ try {
   }
 } catch (e) { done({status: offline(e) ? 'unknown' : 'fail', reason: (offline(e) ? 'the sidebar reads the dataset, which the offline grader cannot serve: ' : 'the sidebar could not be resolved: ') + why(e)}) }
 // A partial walk has not seen every create surface, so it cannot pass.
-allGlobal.push(...source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId))
+for (const n of nodes.slice(firstNode)) n.create = typed(n.create)
+allGlobal.push(...typed(source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId)))
 // 4. actions: built-ins are named; anything else this config adds or wraps is unidentified
 const plain = await sanity.createSourceFromConfig({basePath: '/', ...cfg, document: {...(cfg.document || {}), actions: undefined}, currentUser, getClient})
 const builtin = plain.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'})
 allActions.push(...source.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'}).map((a) => a.action || (builtin.includes(a) ? a.name : 'unidentified:' + (a.name || 'anonymous'))))
 }
-const templateType = (id) => id === '?' ? '?' : (allTemplates.find((t) => t.id === id)?.schemaType || id)
 if (truncated) done({status: 'unknown', reason: 'the sidebar is deeper than 8 levels or has more than 400 panes, which the grader does not walk'})
 if (queried) done({status: 'unknown', reason: 'the config or sidebar queries the dataset (client.' + queried + '), so it can change once documents exist, which the offline grader cannot serve'})
 const global = allGlobal
 const settingsCreate = [{where: 'the global create menu', ids: global}, ...nodes.map((n) => ({where: n.type + ' ' + n.path, ids: n.create}))]
-  .filter((c) => c.ids.some((id) => templateType(id) === 'siteSettings' || templateType(id) === '?')).map((c) => c.where)
+  .filter((c) => c.ids.some((t) => t.type === 'siteSettings' || t.type === '?')).map((c) => c.where)
 const actions = allActions
-done({status: 'ok', builtIn, global: global.map((id) => ({id, type: templateType(id)})),
+done({status: 'ok', builtIn, global,
   settingsCreate, actions, nodes})
 `;
 
