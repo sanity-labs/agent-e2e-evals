@@ -63,6 +63,7 @@ const watch = (c) => new Proxy(c, {get(t, k) {
   const v = Reflect.get(t, k)
   if (k === 'withConfig' || k === 'clone') return (...a) => watch(v.apply(t, a))
   if (k === 'observable') return watch(v)
+  if (k === 'config') return (...a) => { const r = v.apply(t, a); return r === t ? watch(t) : r }
   if (typeof v === 'function' && /^(fetch|listen|getDocuments?)$/.test(String(k))) return (...a) => { queried ||= String(k); return v.apply(t, a) }
   return typeof v === 'function' ? v.bind(t) : v
 }})
@@ -70,7 +71,7 @@ const getClient = ({apiVersion}) => watch(client.withConfig({apiVersion}))
 const offline = (e) => /ECONNREFUSED|fetch failed|127\\.0\\.0\\.1:65535/.test(why(e))
 let source, S
 const nodes = [], allGlobal = [], allActions = []
-let truncated = false, builtIn = false
+let truncated = false, builtIn = false, toolCount = 0
 for (const [wi, cfg] of cfgs.entries()) {
 try {
   source = await sanity.createSourceFromConfig({basePath: '/', ...cfg, currentUser, getClient})
@@ -78,7 +79,9 @@ try {
 // Every structure tool, renamed or not, shares the native component (one object at the pinned version).
 const structureComponent = structure.structureTool().tools[0].component
 const tools = source.tools.filter((t) => t.component === structureComponent)
-if (!tools.length) done({status: 'fail', reason: 'the Studio has no structure tool, so editors have no sidebar'})
+const hasSettings = !!source.schema.get('siteSettings')
+if (!tools.length && hasSettings) done({status: 'fail', reason: 'a workspace with site settings has no structure tool, so editors have no sidebar'})
+toolCount += tools.length
 // Template ids are local to a workspace, so each id is resolved to its type in the workspace that offers it.
 const typed = (ids) => ids.map((id) => ({id, type: id === '?' ? '?' : source.templates.find((t) => t.id === id)?.schemaType || id}))
 const firstNode = nodes.length
@@ -128,17 +131,20 @@ try {
   }
 } catch (e) { done({status: offline(e) ? 'unknown' : 'fail', reason: (offline(e) ? 'the sidebar reads the dataset, which the offline grader cannot serve: ' : 'the sidebar could not be resolved: ') + why(e)}) }
 // A partial walk has not seen every create surface, so it cannot pass.
-for (const n of nodes.slice(firstNode)) n.create = typed(n.create)
-allGlobal.push(...typed(source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId)))
+for (const n of nodes.slice(firstNode)) { n.create = typed(n.create); n.settingsRules = hasSettings }
+allGlobal.push(...typed(source.document.resolveNewDocumentOptions({type: 'global'}).map((t) => t.templateId)).map((t) => ({...t, settingsRules: hasSettings})))
 // 4. actions: built-ins are named; anything else this config adds or wraps is unidentified
+if (hasSettings) {
 const plain = await sanity.createSourceFromConfig({basePath: '/', ...cfg, document: {...(cfg.document || {}), actions: undefined}, currentUser, getClient})
 const builtin = plain.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'})
 allActions.push(...source.document.actions({schemaType: 'siteSettings', documentId: 'siteSettings'}).map((a) => a.action || (builtin.includes(a) ? a.name : 'unidentified:' + (a.name || 'anonymous'))))
 }
+}
+if (!toolCount) done({status: 'fail', reason: 'the Studio has no structure tool, so editors have no sidebar'})
 if (truncated) done({status: 'unknown', reason: 'the sidebar is deeper than 8 levels or has more than 400 panes, which the grader does not walk'})
 if (queried) done({status: 'unknown', reason: 'the config or sidebar queries the dataset (client.' + queried + '), so it can change once documents exist, which the offline grader cannot serve'})
 const global = allGlobal
-const settingsCreate = [{where: 'the global create menu', ids: global}, ...nodes.map((n) => ({where: n.type + ' ' + n.path, ids: n.create}))]
+const settingsCreate = [{where: 'the global create menu', ids: global.filter((t) => t.settingsRules)}, ...nodes.filter((n) => n.settingsRules).map((n) => ({where: n.type + ' ' + n.path, ids: n.create}))]
   .filter((c) => c.ids.some((t) => t.type === 'siteSettings' || t.type === '?')).map((c) => c.where)
 const actions = allActions
 done({status: 'ok', builtIn, global,
