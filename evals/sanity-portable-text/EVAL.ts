@@ -23,7 +23,6 @@ const text = (key: string, children: Obj[], extra: Obj = {}, markDefs: Obj[] = [
   children,
   ...extra,
 });
-const link = (href: string) => text('lk', [span('a link', ['l1'])], {}, [{ _key: 'l1', _type: 'link', href }]);
 const ASSET = { _type: 'reference', _ref: 'image-abc123-10x10-png' };
 const image = (extra: Obj = { alt: 'A diagram' }) => ({ _key: 'im', _type: 'image', asset: ASSET, ...extra });
 
@@ -60,26 +59,23 @@ const post = (body: Obj[] = BODY, excerpt: Obj[] = EXCERPT) => ({
   excerpt,
   body,
 });
-const withBody = (extra: Obj) => post([...BODY, extra]);
+/** The valid post with the body's https link changed to `href`; nothing else differs from the control. */
+const withHref = (href: string) =>
+  post(BODY.map((b) => (b._key === 'b6' ? { ...b, markDefs: [{ ...b.markDefs[0], href }] } : b)));
 
 /** Each document must get at least one validation error. */
 const RULES: Record<string, Obj[]> = {
   'a body link that uses another scheme than https or mailto is an error': [
-    withBody(link('http://example.com')),
-    withBody(link('javascript:alert(1)')),
-    withBody(link('tel:+4712345678')),
-    withBody(link('/about')),
-    withBody(link('example.com')),
+    withHref('http://example.com'),
+    withHref('javascript:alert(1)'),
+    withHref('tel:+4712345678'),
+    withHref('/about'),
+    withHref('example.com'),
   ],
   'a body image without alt text is an error': [
     post([...BODY.slice(0, -1), image({})]),
     post([...BODY.slice(0, -1), image({ alt: '' })]),
   ],
-};
-/** Where each rule's error must be: on the added link or the image, not elsewhere in the document. */
-const AT: Record<string, string> = {
-  'a body link that uses another scheme than https or mailto is an error': 'body.lk.',
-  'a body image without alt text is an error': 'body.im',
 };
 /** Each document must get no errors. */
 const CONTROLS: Record<string, Obj[]> = {
@@ -139,6 +135,7 @@ const postType = schema.get('post')
 const isKind = (t, k) => { for (let x = t; x; x = x.type) if (x.name === k) return true; return false }
 const fieldType = (t, name) => t?.fields?.find((f) => f.name === name)?.type
 if (!postType) missing.push('document type post')
+else if (!isKind(postType, 'document')) missing.push('post as a document type')
 for (const field of ['excerpt', 'body']) {
   const t = fieldType(postType, field)
   if (!t) { if (postType) missing.push('post.' + field); continue }
@@ -277,8 +274,7 @@ test.each(Object.keys(RULES))('%s', (name) => {
   validated();
   result.rules[name].forEach((c: Obj, i: number) => {
     expect(c.complete, `validation did not complete for document ${i + 1}: ${show(c)}`).toBe(true);
-    const here = errors(c).filter((m: Obj) => m.path.startsWith(AT[name]));
-    expect(here.length, `document ${i + 1} gets no error at ${AT[name]}: ${show(c)}`).toBeGreaterThan(0);
+    expect(errors(c).length, `document ${i + 1} gets no error: ${show(c)}`).toBeGreaterThan(0);
   });
 });
 
