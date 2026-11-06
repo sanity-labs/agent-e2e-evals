@@ -205,9 +205,10 @@ const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
 const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
 // The Portable Text task grades only the Studio config and schema types; every other change is reported as tampering.
 const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };
-// The singletons task may add any Studio files (a structure folder, a plugin), so only dependencies and tsconfig.json
-// are protected, as in the schema task.
-const SINGLETONS = SCHEMA;
+// The singletons task grades only TypeScript files, so the agent can add any Studio file (a structure folder, a plugin).
+// Everything else is reported as tampering. Vite and PostCSS configs are blocked by name too: the grader's vitest loads
+// them, and a postcss.config.cjs that exits stopped the grader before any test ran (replay S1-postcss at 4df5cd9).
+const SINGLETONS = { ...FUNCTION, protectedPaths: ['!**/*.{ts,tsx}', '**/{vite,postcss}.config.*', '**/.postcssrc*'] };
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {

@@ -42,10 +42,12 @@ test('the Portable Text fixture replays only the Studio config and schema types 
   );
 });
 
-test('the singletons fixture protects its dependencies and tsconfig like the schema task', () => {
+test('the singletons fixture replays only TypeScript files, and never a Vite or PostCSS config, to the verifier', () => {
   const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
   expect(source).toContain("evalName === 'sanity-singletons'");
-  expect(source).toContain('const SINGLETONS = SCHEMA;');
+  expect(source).toContain(
+    "const SINGLETONS = { ...FUNCTION, protectedPaths: ['!**/*.{ts,tsx}', '**/{vite,postcss}.config.*', '**/.postcssrc*'] };",
+  );
 });
 
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
