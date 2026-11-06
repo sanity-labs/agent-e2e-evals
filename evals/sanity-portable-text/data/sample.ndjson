@@ -1,0 +1,2 @@
+{"_id":"author-ada","_type":"author","name":"Ada Lovelace"}
+{"_id":"post-hello","_type":"post","title":"Hello world","slug":{"_type":"slug","current":"hello-world"},"author":{"_type":"reference","_ref":"author-ada"}}

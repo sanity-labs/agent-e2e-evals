@@ -34,6 +34,14 @@ test('the GROQ cursor fixture replays only the answer file to the verifier', () 
   expect(source).toContain("const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };");
 });
 
+test('the Portable Text fixture replays only the Studio config and schema types to the verifier', () => {
+  const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
+  expect(source).toContain("evalName === 'sanity-portable-text'");
+  expect(source).toContain(
+    "const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };",
+  );
+});
+
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
 const stub = `data:text/javascript,${encodeURIComponent(`
 let n = 0;
