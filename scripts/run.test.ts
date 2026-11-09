@@ -28,6 +28,12 @@ test('the App SDK read fixture replays only the answer file to the verifier', ()
   expect(source).toContain("const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };");
 });
 
+test('the GROQ cursor fixture replays only the answer file to the verifier', () => {
+  const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
+  expect(source).toContain("evalName === 'sanity-groq-cursor'");
+  expect(source).toContain("const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };");
+});
+
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
 const stub = `data:text/javascript,${encodeURIComponent(`
 let n = 0;

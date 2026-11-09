@@ -201,6 +201,8 @@ const WEBHOOK = {
 // The App SDK read task grades only src/PostList.tsx: every other change (configs, App.tsx, dependencies) is kept out
 // of grading and reported as tampering. A root config file such as postcss.config.cjs is loaded by the grader's own vitest.
 const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
+// The GROQ cursor task grades only src/pagination.ts the same way; every other change is reported as tampering.
+const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -268,7 +270,9 @@ for (let run = 1; run <= runs; run++) {
                           ? WEBHOOK
                           : evalName === 'sanity-appsdk-read'
                             ? APPSDK
-                            : {}),
+                            : evalName === 'sanity-groq-cursor'
+                              ? GROQCURSOR
+                              : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
