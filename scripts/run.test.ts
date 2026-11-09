@@ -22,6 +22,12 @@ const FAKE_KEY = 'sk-or-FAKE-MARKER-123';
 writeFileSync(keyFile, FAKE_KEY);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+test('the App SDK read fixture replays only the answer file to the verifier', () => {
+  const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
+  expect(source).toContain("evalName === 'sanity-appsdk-read'");
+  expect(source).toContain("const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };");
+});
+
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
 const stub = `data:text/javascript,${encodeURIComponent(`
 let n = 0;
