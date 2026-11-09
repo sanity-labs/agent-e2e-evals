@@ -1,0 +1,25 @@
+{
+  "name": "sanity-webhook",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--import=./scripts/sample-api.mjs next build",
+    "start": "NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--import=./scripts/sample-api.mjs next start"
+  },
+  "dependencies": {
+    "@sanity/webhook": "4.0.4",
+    "groq-js": "2.0.1",
+    "next": "16.4.5",
+    "next-sanity": "13.4.0",
+    "nock": "15.0.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3",
+    "vitest": "^2.1.0"
+  }
+}
