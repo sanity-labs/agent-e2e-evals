@@ -203,6 +203,8 @@ const WEBHOOK = {
 const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
 // The GROQ cursor task grades only src/pagination.ts the same way; every other change is reported as tampering.
 const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
+// The Portable Text task grades only the Studio config and schema types; every other change is reported as tampering.
+const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -272,7 +274,9 @@ for (let run = 1; run <= runs; run++) {
                             ? APPSDK
                             : evalName === 'sanity-groq-cursor'
                               ? GROQCURSOR
-                              : {}),
+                              : evalName === 'sanity-portable-text'
+                                ? PORTABLETEXT
+                                : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
