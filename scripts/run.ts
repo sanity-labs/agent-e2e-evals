@@ -194,6 +194,10 @@ const UPGRADE = MIGRATION;
 const SCHEMA = { ...FUNCTION, protectedPaths: ['tsconfig.json', 'package.json', 'npm-shrinkwrap.json', '.npmrc'] };
 // The Astro task builds against the shipped local content API, so the agent must not change it, its scripts or dependencies.
 const ASTRO = { ...FUNCTION, protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs'] };
+const WEBHOOK = {
+  ...FUNCTION,
+  protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs', 'app/api/sample-witness/route.ts'],
+};
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -257,7 +261,9 @@ for (let run = 1; run <= runs; run++) {
                       ? SCHEMA
                       : evalName === 'sanity-astro'
                         ? ASTRO
-                        : {}),
+                        : evalName === 'sanity-webhook'
+                          ? WEBHOOK
+                          : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
