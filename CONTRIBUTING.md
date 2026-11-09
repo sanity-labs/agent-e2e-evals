@@ -30,7 +30,7 @@ Here's some terminology you'll see used throughout @vercel/agent-eval and this p
 
 ## Working with real Sanity projects
 
-Most evals never call Sanity: their graders serve hidden content from a local stand-in for the query API, created fresh for each run. A few live tasks (the getting-started scaffold) create real projects on the Sanity staging instance, authenticated with the `SANITY_AUTH_TOKEN` staging token.
+Most evals never call Sanity. Graders run separately from the agent. Several use local stand-ins for the Sanity query API and hidden test data, including fixed cases. We audit transcripts and changed files; public graders can be learned, so a task that leaks needs a new version. A few live tasks (the getting-started scaffold) create real projects on the Sanity staging instance, authenticated with the `SANITY_AUTH_TOKEN` staging token.
 
 The runner never deletes projects. Before and after each batch it saves the list of staging projects the token can see, and names the ones first seen during the batch, for someone to review and delete by hand. With a shared token and other work going on, "first seen during the batch" does not prove the batch created them.
 
@@ -56,4 +56,4 @@ Smoke-test on one eval and one cheap model before a larger batch.
 
 Summarise a batch with `node scripts/export-results.ts results/<runId> [report.json]`. It prints one row per model and task: attempts planned, saved and completed, passes, infrastructure failures, cost, tokens and time. There is no ranking.
 
-An attempt passes only if the project's configured scripts and every check in the eval's `EVAL.ts` pass. Infrastructure failures (rate limits, sandbox faults) are never guessed. Mark one by writing the evidence in `results/<runId>/labels.json`. A few older evals only check structure, so their outcome stays unknown until someone labels it. The July results in `published/` were produced by the previous runner and use its scoring.
+An attempt passes only if the project's configured scripts and every check in the eval's `EVAL.ts` pass. Infrastructure failures (rate limits, sandbox faults) are never guessed. Mark one by writing the evidence in `results/<runId>/labels.json`. The starter, presentation, live-content and Functions (blueprints) evals give a label-only outcome: it stays unknown until someone labels it. The July results in `published/` were produced by the previous runner and use its scoring.

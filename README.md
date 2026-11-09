@@ -2,7 +2,7 @@
 
 This repository contains Sanity's E2E eval suite we use to benchmark coding agents on how well they accomplish realistic tasks on Sanity projects.
 
-We test several different agent harnesses (Claude Code, Codex, Cursor, etc.) with a variety of models to better understand their strengths & weaknesses when working with Sanity.
+We test a variety of models to better understand their strengths & weaknesses when working with Sanity. (Earlier versions of this suite also compared harnesses such as Claude Code, Codex and Cursor.)
 Each model runs in the same harness through OpenRouter, in two variants:
 
 - Baseline - a stock coding agent config
@@ -17,7 +17,7 @@ For local development, running scripts, and working with generated results, see 
 Each eval is a realistic Sanity-related coding task in a project fixture.
 The agent receives the prompt, works in the fixture, and then static assertions are run to determine how well the agent completed the task.
 
-Most graders serve hidden content from a local stand-in for the Sanity query API, generated fresh for each run, so the agent can't see the data it is graded on. A few evals have the agent interact with live Sanity resources on our staging instance.
+Graders run separately from the agent. Several use local stand-ins for the Sanity query API and hidden test data, including fixed cases. We audit transcripts and changed files; public graders can be learned, so a task that leaks needs a new version. A few evals have the agent interact with live Sanity resources on our staging instance.
 See [CONTRIBUTING.md](CONTRIBUTING.md#working-with-real-sanity-projects) for guidance on how to work with these evals.
 
 We grade evals on two main things:
@@ -32,7 +32,7 @@ This keeps the task set consistent so differences in scores reflect the availabl
 
 Agent behavior is nondeterministic, so we repeat each model and task several times in fresh sandboxes and report raw counts, not one run.
 
-An attempt passes only if the project's scripts and every check in its `EVAL.ts` pass. We report, for each model and task, the number of attempts, passes, infrastructure failures (counted separately, never as agent failures), cost, tokens and time. We do not report a single blended score. The July results in [`published/`](published/README.md) came from the previous runner and used its pass-ratio scoring.
+An attempt passes only if the project's scripts and every check in its `EVAL.ts` pass. We report, for each model and task, the number of attempts, passes, infrastructure failures (counted separately, never as agent failures), cost, tokens and time. We do not report a single blended score. The starter, presentation, live-content and Functions (blueprints) evals give a label-only outcome: it stays unknown until someone labels it. The July results in [`published/`](published/README.md) came from the previous runner and used its pass-ratio scoring.
 
 ## What evals should measure
 
