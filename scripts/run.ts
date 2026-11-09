@@ -187,6 +187,8 @@ const STARTER = { protectedPaths: ['package.json', 'build.mjs'], copyFiles: 'cha
 const FUNCTION = { copyFiles: 'changed' as const };
 // The migration grader typechecks with the shipped tsconfig.json, so the agent must not change it.
 const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
+// The upgrade task changes package.json on purpose, so only tsconfig.json is protected (the grader typechecks with it).
+const UPGRADE = MIGRATION;
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -240,7 +242,13 @@ for (let run = 1; run <= runs; run++) {
               runs: 1,
               evals: evalName,
               ...(evalName === 'sanity-nextjs-starter' ? STARTER : {}),
-              ...(evalName === 'sanity-blueprints' ? FUNCTION : evalName === 'sanity-migration' ? MIGRATION : {}),
+              ...(evalName === 'sanity-blueprints'
+                ? FUNCTION
+                : evalName === 'sanity-migration'
+                  ? MIGRATION
+                  : evalName === 'sanity-studio-upgrade'
+                    ? UPGRADE
+                    : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
