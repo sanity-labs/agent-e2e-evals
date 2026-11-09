@@ -15,8 +15,11 @@
     "format:fix": "oxfmt"
   },
   "devDependencies": {
+    "@sanity/mutator": "6.20.0",
     "@types/node": "^24.12.2",
     "@vercel/agent-eval": "2.6.0",
+    "cheerio": "1.2.0",
+    "groq-js": "2.0.1",
     "knip": "^6.15.0",
     "map-obj": "^6.0.0",
     "oxfmt": "^0.45.0",

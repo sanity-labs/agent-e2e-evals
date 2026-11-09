@@ -189,7 +189,10 @@ const key = (d: { _id: string; publishedAt?: string | null }) =>
   [d.publishedAt ? 1 : 0, d.publishedAt ?? '', d._id] as const;
 const before = (a: Doc | Cursor, b: Doc | Cursor) => {
   const [x, y] = [key(a), key(b)];
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  for (const [i, p] of x.entries()) {
+    const q = y[i] as typeof p;
+    if (p !== q) return p > q;
+  }
   return false;
 };
 
