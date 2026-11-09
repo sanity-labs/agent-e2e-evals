@@ -6,9 +6,11 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { runInNewContext } from 'node:vm';
 import { afterAll, expect, test, vi } from 'vitest';
 import { SLUG_HINT } from '../experiments/gpt-5.6-terra-slug-hint.ts';
 
@@ -40,6 +42,32 @@ test('the Portable Text fixture replays only the Studio config and schema types 
   expect(source).toContain(
     "const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };",
   );
+});
+
+test('the singletons fixture keeps dependency, Vite and PostCSS changes from the verifier but replays other Studio files', async () => {
+  const source = readFileSync(join(root, 'scripts/run.ts'), 'utf8');
+  expect(source).toContain("evalName === 'sanity-singletons'");
+  // Evaluate the real config lines and check them with the harness's own path matcher.
+  const config = (name: string, context: object) =>
+    runInNewContext(`(${source.match(new RegExp(`^const ${name} = ([^;]+);$`, 'm'))?.[1]})`, context);
+  const FUNCTION = {};
+  const { protectedPaths } = config('SINGLETONS', { FUNCTION, SCHEMA: config('SCHEMA', { FUNCTION }) });
+  const verifier = createRequire(import.meta.url)
+    .resolve('@vercel/agent-eval/package.json')
+    .replace(/package\.json$/, 'dist/lib/agents/verifier.js');
+  const { createProtectedPathMatcher, VERIFIER_PROTECTED_PATHS } = await import(verifier);
+  const isProtected = createProtectedPathMatcher([...VERIFIER_PROTECTED_PATHS, ...protectedPaths]);
+  const replayed = [
+    'sanity.config.ts',
+    'structure/index.ts',
+    'plugins/singletons.tsx',
+    'seasons.json',
+    'schemaTypes/page.ts',
+  ];
+  const blocked = ['postcss.config.cjs', 'postcss.config.ts', '.postcssrc.json', 'sub/.postcssrc', 'vite.config.mjs'];
+  blocked.push('package.json', 'npm-shrinkwrap.json', '.npmrc', 'tsconfig.json', 'vitest.config.mjs', 'EVAL.ts');
+  expect(replayed.filter(isProtected)).toEqual([]);
+  expect(blocked.filter((path) => !isProtected(path))).toEqual([]);
 });
 
 // First key check succeeds (batch start); later ones follow MODE. Errors echo the key, to test redaction.
