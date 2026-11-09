@@ -1,1 +1,1 @@
-Can you implement the post view page? The home page has cards that link to `/posts/<slug>` but there's nothing rendering at that route right now — every post 404s. The sitemap needs to work for posts too.
+Can you implement the post view page? The home page has cards that link to `/posts/<slug>` but there's nothing rendering at that route right now — every post 404s. A slug that doesn't match any post should still return a proper 404. The sitemap needs to work for posts too.
