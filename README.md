@@ -2,14 +2,13 @@
 
 This repository contains Sanity's E2E eval suite we use to benchmark coding agents on how well they accomplish realistic tasks on Sanity projects.
 
-We test several different agent harnesses (Claude Code, Codex, Cursor, etc.) with a variety of models to better understand their strengths & weaknesses when working with Sanity.
-Evals are split into three categories:
+We test a variety of models to better understand their strengths & weaknesses when working with Sanity. (Earlier versions of this suite also compared harnesses such as Claude Code, Codex and Cursor.)
+Each model runs in the same harness through OpenRouter, in two variants:
 
 - Baseline - a stock coding agent config
-- MCP - the agent has access to [the Sanity MCP server](https://www.sanity.io/docs/ai/mcp-server)
 - Skills - the agent is configured with [Sanity's agent skills](https://github.com/sanity-io/agent-toolkit#readme)
 
-This lets us quantify how much our MCP and agent skills help agents.
+This lets us measure how much our agent skills help. The earlier MCP variant is not part of the current runner.
 
 For local development, running scripts, and working with generated results, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -18,7 +17,7 @@ For local development, running scripts, and working with generated results, see 
 Each eval is a realistic Sanity-related coding task in a project fixture.
 The agent receives the prompt, works in the fixture, and then static assertions are run to determine how well the agent completed the task.
 
-Some evals also have the agent interact with live Sanity resources against our staging instance.
+Graders run separately from the agent. Several use local stand-ins for the Sanity query API and hidden test data, including fixed cases. We audit transcripts and changed files; public graders can be learned, so a task that leaks needs a new version. A few evals have the agent interact with live Sanity resources on our staging instance.
 See [CONTRIBUTING.md](CONTRIBUTING.md#working-with-real-sanity-projects) for guidance on how to work with these evals.
 
 We grade evals on two main things:
@@ -28,15 +27,12 @@ We grade evals on two main things:
 
 ## Experiment methodology
 
-We run the same eval suite across the baseline, MCP, and skills variants for each agent.
+We run the same eval suite across the baseline and skills variants for each model.
 This keeps the task set consistent so differences in scores reflect the available tools and prompting rather than differences in the evals themselves.
 
-Agent behavior is nondeterministic, so our experiment configs use scores averaged across multiple runs to de-noise the results we get.
+Agent behavior is nondeterministic, so we repeat each model and task several times in fresh sandboxes and report raw counts, not one run.
 
-Scores are based on assertion pass ratios.
-For a single run, the score is `passed tests / total tests` from the eval's Vitest output.
-Those run scores are averaged across attempts, then across evals, then across variants for summary views.
-See [`published/README.md`](published/README.md) for more info on the exported JSON summary format.
+An attempt passes only if the project's scripts and every check in its `EVAL.ts` pass. We report, for each model and task, the number of attempts, passes, infrastructure failures (counted separately, never as agent failures), cost, tokens and time. We do not report a single blended score. The starter, presentation, live-content and Functions (blueprints) evals give a label-only outcome: it stays unknown until someone labels it. The July results in [`published/`](published/README.md) came from the previous runner and used its pass-ratio scoring.
 
 ## What evals should measure
 
