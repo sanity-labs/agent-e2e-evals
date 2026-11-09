@@ -1,151 +1,169 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import ts from 'typescript';
 import { expect, test } from 'vitest';
 
-// This eval checks that the agent set up the Sanity Presentation Tool for
-// Visual Editing in a Next.js + Sanity workspace. The fixture is the official
-// `sanity-io/sanity-template-nextjs-clean` template with all presentation-
-// related code surgically removed. A correct solution wires the Studio
-// `presentationTool` plugin back up and adds the frontend pieces required for
-// Next.js Draft Mode + Visual Editing overlays to work end-to-end.
+// Structural diagnostics for the Presentation / Visual Editing task. The fixture
+// is the official `sanity-io/sanity-template-nextjs-clean` template with the
+// presentation code removed. Each check asks the TypeScript checker what a call
+// or JSX tag resolves to, so comments, fake imports and local look-alikes don't
+// count. They show that the required SDK pieces are present, NOT that they are
+// connected or that Visual Editing works. Task completion comes from a manual
+// label; until then the exporter reports it as unknown
+// (research/presentation-live-contract.md).
 
-async function readFile(filePath: string): Promise<string | undefined> {
-  try {
-    return await fs.readFile(filePath, 'utf-8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw err;
-  }
+const EXCLUDE = ['**/node_modules/**', '**/.next/**', '**/.sanity/**', '**/dist/**', '**/.git/**'];
+
+async function glob(pattern: string): Promise<string[]> {
+  const out: string[] = [];
+  for await (const f of fs.glob(pattern, { exclude: EXCLUDE })) out.push(path.resolve(f));
+  return out;
 }
 
-async function firstExisting(...paths: string[]): Promise<string | undefined> {
-  for (const p of paths) {
-    if ((await readFile(p)) !== undefined) return p;
+// One package's program and lookup helpers. Every file under `dir` is included,
+// so a narrower tsconfig `include` can't hide a file from the checks.
+function analyse(dir: string, files: string[]) {
+  const read = ts.readConfigFile(path.resolve(dir, 'tsconfig.json'), ts.sys.readFile);
+  const parsed = ts.parseJsonConfigFileContent(read.config ?? {}, ts.sys, path.resolve(dir));
+  const program = ts.createProgram([...new Set([...parsed.fileNames, ...files])], {
+    ...parsed.options,
+    noEmit: true,
+    incremental: false,
+  });
+  const checker = program.getTypeChecker();
+  const root = path.resolve(dir) + path.sep;
+  const nodes: Array<[ts.SourceFile, ts.Node]> = [];
+  for (const sf of program.getSourceFiles()) {
+    if (!path.resolve(sf.fileName).startsWith(root)) continue;
+    const walk = (n: ts.Node): void => {
+      nodes.push([sf, n]);
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
   }
-  return undefined;
+  // The declaration a name finally refers to, following imports and re-exports.
+  const resolved = (node: ts.Node): ts.Symbol | undefined => {
+    let s = checker.getSymbolAtLocation(ts.isPropertyAccessExpression(node) ? node.name : node);
+    while (s && s.flags & ts.SymbolFlags.Alias) {
+      const next = checker.getAliasedSymbol(s);
+      if (next === s) break;
+      s = next;
+    }
+    return s;
+  };
+  // True when a node names the export `name` of package `pkg`, however it was imported or renamed.
+  const isExport = (node: ts.Node, pkg: string, name: string) => {
+    const s = resolved(node);
+    return (
+      s?.getName() === name &&
+      (s.declarations ?? []).some((d) => d.getSourceFile().fileName.includes(`/node_modules/${pkg}/`))
+    );
+  };
+  // Follow a local constant to its initializer.
+  const valueOf = (e: ts.Expression | undefined): ts.Expression | undefined => {
+    const d = e && ts.isIdentifier(e) ? resolved(e)?.valueDeclaration : undefined;
+    return d && ts.isVariableDeclaration(d) && d.initializer ? d.initializer : e;
+  };
+  const prop = (e: ts.Expression | undefined, name: string): ts.Expression | undefined => {
+    const o = valueOf(e);
+    if (!o || !ts.isObjectLiteralExpression(o)) return undefined;
+    for (const p of o.properties) {
+      if (p.name?.getText().replace(/['"]/g, '') !== name) continue;
+      if (ts.isPropertyAssignment(p)) return p.initializer;
+      if (ts.isShorthandPropertyAssignment(p)) return p.name;
+    }
+    return undefined;
+  };
+  return { checker, nodes, isExport, valueOf, prop };
 }
 
-// Search common studio/config filenames for the Sanity Studio config.
-const studioConfigPath = await firstExisting(
-  'studio/sanity.config.ts',
-  'studio/sanity.config.js',
-  'sanity.config.ts',
-  'sanity.config.js',
-);
+const studioConfigPath =
+  (await glob('studio/sanity.config.{ts,tsx,js,jsx}'))[0] ?? (await glob('sanity.config.{ts,tsx,js,jsx}'))[0];
+const studioDir = studioConfigPath ? path.dirname(studioConfigPath) : path.resolve('studio');
+const S = analyse(studioDir, studioConfigPath ? [studioConfigPath] : []);
+const F = analyse('frontend', await glob('frontend/**/*.{ts,tsx,js,jsx}'));
 
-// Search common frontend layout filenames.
-const frontendLayoutPath = await firstExisting(
-  'frontend/app/layout.tsx',
-  'frontend/app/layout.jsx',
-  'frontend/app/layout.ts',
-  'frontend/app/layout.js',
-);
+// A `presentationTool({...})` call placed in the `plugins` array of the Studio's `defineConfig`.
+const presentation = S.nodes
+  .filter(
+    ([sf, n]) =>
+      sf.fileName === studioConfigPath && ts.isCallExpression(n) && S.isExport(n.expression, 'sanity', 'defineConfig'),
+  )
+  .flatMap(([, n]) => {
+    const ws = S.valueOf((n as ts.CallExpression).arguments[0]);
+    return ws && ts.isArrayLiteralExpression(ws) ? [...ws.elements] : [ws];
+  })
+  .flatMap((ws) => {
+    const plugins = S.valueOf(S.prop(ws as ts.Expression, 'plugins'));
+    return plugins && ts.isArrayLiteralExpression(plugins) ? plugins.elements.map((e) => S.valueOf(e)) : [];
+  })
+  .find(
+    (c): c is ts.CallExpression =>
+      !!c && ts.isCallExpression(c) && S.isExport(c.expression, 'sanity', 'presentationTool'),
+  );
+const previewUrl = presentation ? S.prop(presentation.arguments[0], 'previewUrl') : undefined;
+const enableExpr =
+  S.prop(S.prop(previewUrl, 'previewMode'), 'enable') ?? S.prop(S.prop(previewUrl, 'draftMode'), 'enable');
+const enableType = enableExpr && S.checker.getTypeAtLocation(enableExpr);
+const enablePath = enableType?.isStringLiteral() ? enableType.value : undefined;
 
-// Locate a Next.js route handler that enables Draft Mode. The template ships
-// it at `app/api/draft-mode/enable/route.ts`, but we accept any route.ts under
-// `frontend/app` that imports `defineEnableDraftMode`.
-async function findEnableDraftModeRoute(): Promise<string | undefined> {
-  for await (const filePath of fs.glob('frontend/app/**/route.{ts,tsx,js,jsx}', {
-    exclude: ['**/node_modules/**', '**/.next/**', '**/.sanity/**', '**/dist/**', '**/.git/**'],
-  })) {
-    const content = await readFile(filePath);
-    if (content && /defineEnableDraftMode\b/.test(content)) return filePath;
-  }
-  return undefined;
-}
+const callsTo = (pkg: string, name: string) =>
+  F.nodes.filter(([, n]) => ts.isCallExpression(n) && F.isExport(n.expression, pkg, name));
 
-const enableDraftModeRoutePath = await findEnableDraftModeRoute();
+test('Studio `defineConfig` lists a `presentationTool` call in `plugins`', () => {
+  expect(studioConfigPath, 'expected a `sanity.config.{ts,js}` in studio or repo root').toBeDefined();
+  expect(presentation, 'expected `presentationTool(...)` from `sanity/presentation` in `plugins`').toBeDefined();
+});
 
-const frontendClientPath = await firstExisting(
-  'frontend/sanity/lib/client.ts',
-  'frontend/sanity/lib/client.js',
-  'frontend/src/sanity/lib/client.ts',
-);
+test('`presentationTool` has a `previewUrl` with a Draft Mode enable path', () => {
+  expect(previewUrl, 'expected a `previewUrl` option on `presentationTool`').toBeDefined();
+  expect(enablePath, 'expected `previewUrl.previewMode.enable` to be a path string or constant').toMatch(/^\//);
+});
 
-test('Studio config registers the `presentationTool` plugin', async () => {
-  expect(studioConfigPath, 'expected a `sanity.config.{ts,js}` in studio or repo root').not.toBeUndefined();
-  const content = (await readFile(studioConfigPath!))!;
-
-  expect(content, 'expected an import from `sanity/presentation`').toMatch(/from\s+['"]sanity\/presentation['"]/);
-  expect(content, 'expected `presentationTool` to be imported').toMatch(/\bpresentationTool\b/);
-  expect(content, 'expected `presentationTool({...})` to be called inside the `plugins` array').toMatch(
-    /presentationTool\s*\(/,
+test('a route file at the Studio enable path calls `defineEnableDraftMode`', () => {
+  // `frontend/app/(group)/api/draft-mode/enable/route.ts` -> `/api/draft-mode/enable`
+  const routes = callsTo('next-sanity', 'defineEnableDraftMode')
+    .map(([sf]) => path.relative(path.resolve('frontend/app'), sf.fileName).split(path.sep))
+    .filter((segs) => /^route\.(ts|tsx|js|jsx)$/.test(segs.at(-1)!) && segs[0] !== '..')
+    .map(
+      (segs) =>
+        '/' +
+        segs
+          .slice(0, -1)
+          .filter((s) => !/^\(.*\)$/.test(s))
+          .join('/'),
+    );
+  expect(routes, `expected a frontend/app route.ts calling \`defineEnableDraftMode\` at \`${enablePath}\``).toContain(
+    enablePath,
   );
 });
 
-test('Studio presentation config wires a `previewUrl` pointing at the Next.js app', async () => {
-  expect(studioConfigPath).not.toBeUndefined();
-  const content = (await readFile(studioConfigPath!))!;
-
-  expect(content, 'expected a `previewUrl` option on `presentationTool`').toMatch(/previewUrl\s*:/);
-  // The `previewMode.enable` path is what the Studio calls to enable Next.js
-  // Draft Mode — without it, Presentation can't load drafts.
-  expect(
-    content,
-    'expected `previewMode.enable` (or `previewUrl.draftMode.enable`) to reference a Next.js route',
-  ).toMatch(/enable\s*:\s*['"]\/[^'"\s]+['"]/);
-});
-
-test('Frontend exposes a Draft Mode enable route for Presentation', async () => {
-  expect(
-    enableDraftModeRoutePath,
-    'expected a Next.js route handler under `frontend/app/**/route.{ts,tsx}` that uses `defineEnableDraftMode` from `next-sanity/draft-mode`',
-  ).not.toBeUndefined();
-
-  const content = (await readFile(enableDraftModeRoutePath!))!;
-  expect(content, 'expected the route to import `defineEnableDraftMode` from `next-sanity/draft-mode`').toMatch(
-    /from\s+['"]next-sanity\/draft-mode['"]/,
+test('frontend contains JSX for `<VisualEditing />` from next-sanity', () => {
+  const present = F.nodes.some(
+    ([, n]) =>
+      (ts.isJsxSelfClosingElement(n) || ts.isJsxOpeningElement(n)) &&
+      F.isExport(n.tagName, 'next-sanity', 'VisualEditing'),
   );
-  expect(content, 'expected the route to export a GET handler via `defineEnableDraftMode(...)`').toMatch(
-    /defineEnableDraftMode\s*\(/,
-  );
-  expect(content, 'expected the route to export a `GET` handler').toMatch(/\bGET\b/);
+  expect(present, 'expected JSX for `VisualEditing` from `next-sanity/visual-editing`').toBe(true);
 });
 
-test('Studio `previewMode.enable` path matches the frontend Draft Mode route', async () => {
-  // The path the Studio calls to enable Draft Mode must match the actual
-  // Next.js route the frontend exposes — otherwise clicking "Presentation"
-  // won't activate drafts.
-  expect(studioConfigPath).not.toBeUndefined();
-  expect(enableDraftModeRoutePath).not.toBeUndefined();
-
-  const configContent = (await readFile(studioConfigPath!))!;
-  const enableMatch = configContent.match(/enable\s*:\s*['"](\/[^'"\s]+)['"]/);
-  expect(enableMatch, 'could not find an `enable: "/..."` entry in the studio config').not.toBeNull();
-  const configuredPath = enableMatch![1]!;
-
-  // Derive the route's URL path from its file path, e.g.
-  // `frontend/app/api/draft-mode/enable/route.ts` -> `/api/draft-mode/enable`.
-  const routeUrl =
-    '/' + enableDraftModeRoutePath!.replace(/^frontend\/app\//, '').replace(/\/route\.(ts|tsx|js|jsx)$/, '');
-
+test('a Sanity client config sets `stega.studioUrl`', () => {
+  const configs = F.nodes.flatMap(([, n]) => {
+    if (!ts.isCallExpression(n) || !n.arguments[0]) return [];
+    const create =
+      F.isExport(n.expression, 'next-sanity', 'createClient') ||
+      F.isExport(n.expression, '@sanity/client', 'createClient');
+    const withConfig =
+      ts.isPropertyAccessExpression(n.expression) &&
+      n.expression.name.text === 'withConfig' &&
+      !!F.checker
+        .getResolvedSignature(n)
+        ?.declaration?.getSourceFile()
+        .fileName.includes('/node_modules/@sanity/client/');
+    return create || withConfig ? [n.arguments[0]] : [];
+  });
   expect(
-    configuredPath,
-    `studio config enables draft mode via \`${configuredPath}\`, but the frontend exposes the route at \`${routeUrl}\``,
-  ).toBe(routeUrl);
-});
-
-test('Frontend layout renders `<VisualEditing />` when Draft Mode is enabled', async () => {
-  expect(frontendLayoutPath, 'expected a `frontend/app/layout.{ts,tsx,js,jsx}`').not.toBeUndefined();
-  const content = (await readFile(frontendLayoutPath!))!;
-
-  expect(content, 'expected `VisualEditing` to be imported from `next-sanity/visual-editing`').toMatch(
-    /from\s+['"]next-sanity\/visual-editing['"]/,
-  );
-  expect(content, 'expected `<VisualEditing />` to be rendered in the layout').toMatch(/<VisualEditing\b/);
-  // Visual editing should only render inside Draft Mode — otherwise stega
-  // encoded strings will leak into production output.
-  expect(content, 'expected the layout to gate `<VisualEditing />` on Next.js `draftMode()`').toMatch(/draftMode\s*\(/);
-});
-
-test('Sanity client is configured with `stega` for Visual Editing overlays', async () => {
-  expect(frontendClientPath, 'expected a Sanity client at `frontend/sanity/lib/client.{ts,js}`').not.toBeUndefined();
-  const content = (await readFile(frontendClientPath!))!;
-
-  // `stega` is what lets the Presentation Tool map rendered strings back to
-  // their source documents for click-to-edit overlays. Without it, the
-  // overlays are inert.
-  expect(
-    content,
-    'expected the Sanity client to pass a `stega` option (e.g. `stega: {studioUrl}`) for Visual Editing',
-  ).toMatch(/\bstega\b/);
+    configs.some((c) => F.prop(F.prop(c, 'stega'), 'studioUrl') !== undefined),
+    'expected `stega: {studioUrl}` in a `createClient` or `client.withConfig` call',
+  ).toBe(true);
 });

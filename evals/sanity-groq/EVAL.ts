@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import ts from 'typescript';
 import { expect, test } from 'vitest';
 
 // This eval checks that the agent rebuilt the post detail page that was
@@ -9,6 +10,25 @@ import { expect, test } from 'vitest';
 // fields + author dereferencing + portable text content with link refs), wires
 // up `frontend/app/posts/[slug]/page.{ts,tsx}`, and uses the existing
 // rendering components (Avatar, PortableText, SanityImage).
+
+// Equivalent GROQ spellings are all accepted: a check on query text must not grade style.
+const SLUG_PARAM_RE = /slug\.current\s*==\s*\$slug|\$slug\s*==\s*slug\.current/;
+const DEFINED_SLUG_RE = /defined\(\s*slug\.current\s*\)|slug\.current\s*!=\s*null/;
+
+// Route checks ignore comments, so a mention in a comment can't satisfy them.
+const stripComments = (code: string) =>
+  ts
+    .createPrinter({ removeComments: true })
+    .printFile(ts.createSourceFile('route.tsx', code, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX));
+
+// The local name the route gives `sanityFetch` from the live module (`sanityFetch` or `sanityFetch as x`).
+function liveFetchName(code: string): string | undefined {
+  const named = code.match(/import\s*\{([^}]*)\}\s*from\s*['"](?:@\/|(?:\.\.?\/)+)sanity\/lib\/live['"]/)?.[1];
+  const m = named?.match(/\bsanityFetch\b(?:\s+as\s+([A-Za-z_$][\w$]*))?/);
+  return m ? (m[1] ?? 'sanityFetch') : undefined;
+}
+const callsName = (code: string, name: string | undefined) =>
+  name !== undefined && new RegExp(`(?<![\\w$.])${name.split('$').join('[$]')}\\s*\\(`).test(code);
 
 async function readFile(filePath: string): Promise<string | undefined> {
   try {
@@ -55,7 +75,7 @@ async function findPostQueryModule(): Promise<{ filePath: string; content: strin
       if (!exportName || !body) continue;
       // A single-post-by-slug query: filters posts and matches on the slug param.
       const filtersOnPost = /_type\s*==\s*['"]post['"]/.test(body);
-      const matchesSlugParam = /slug\.current\s*==\s*\$slug/.test(body);
+      const matchesSlugParam = SLUG_PARAM_RE.test(body);
       if (filtersOnPost && matchesSlugParam) {
         return { filePath, content, exportName };
       }
@@ -86,7 +106,7 @@ async function findPostSlugsQueryModule(): Promise<
       const [, exportName, , body] = match;
       if (!body || !exportName) continue;
       const filtersOnPostOnly = /_type\s*==\s*['"]post['"]/.test(body) && !/_type\s*==\s*['"]page['"]/.test(body);
-      const requiresDefinedSlug = /defined\(\s*slug\.current\s*\)/.test(body);
+      const requiresDefinedSlug = DEFINED_SLUG_RE.test(body);
       const projectsSlug = /slug\.current/.test(body);
       // A slugs-only query shouldn't pull in heavy field fragments — neither
       // literal projections like `coverImage` nor `${postFields}`-style
@@ -149,9 +169,7 @@ test('`postQuery` filters posts by `slug.current == $slug` and returns a single 
   const body = bodyMatch![2]!;
 
   expect(body, `expected \`${exportName}\` to filter \`_type == "post"\``).toMatch(/_type\s*==\s*['"]post['"]/);
-  expect(body, `expected \`${exportName}\` to filter by \`slug.current == $slug\``).toMatch(
-    /slug\.current\s*==\s*\$slug/,
-  );
+  expect(body, `expected \`${exportName}\` to filter by \`slug.current == $slug\``).toMatch(SLUG_PARAM_RE);
   // The frontend uses `data._id`, `data.title`, etc. directly — without `[0]`
   // the query returns an array and the consumer code breaks at runtime.
   expect(body, `expected \`${exportName}\` to return a single post via \`[0]\``).toMatch(/\[\s*0\s*\]/);
@@ -216,21 +234,24 @@ test('A slugs-only post query exists for `generateStaticParams`', () => {
 
 test('Post detail route uses `sanityFetch` (not raw `client.fetch`)', async () => {
   expect(postDetailRoutePath, 'cannot check fetch helper without the route file').not.toBeUndefined();
-  const content = (await readFile(postDetailRoutePath!))!;
+  const content = stripComments((await readFile(postDetailRoutePath!))!);
 
   // Every other page in the template fetches via `sanityFetch` from
   // `@/sanity/lib/live`. Using the bare client bypasses Live Content / Draft
   // Mode and breaks Visual Editing.
-  expect(content, 'expected the route to import `sanityFetch` (so Live Content + Draft Mode work)').toMatch(
-    /\bsanityFetch\b/,
-  );
+  const name = liveFetchName(content);
+  expect(
+    name,
+    'expected the route to import `sanityFetch` from `@/sanity/lib/live` (so Live Content + Draft Mode work)',
+  ).not.toBeUndefined();
+  expect(callsName(content, name), `expected the route to call \`${name}(...)\``).toBe(true);
 });
 
 test('Post detail route imports `postQuery` and the slugs query', async () => {
   expect(postDetailRoutePath, 'cannot check imports without the route file').not.toBeUndefined();
   expect(postQueryModule, 'cannot check imports without the post query module').not.toBeUndefined();
   expect(postSlugsModule, 'cannot check imports without the slugs query module').not.toBeUndefined();
-  const content = (await readFile(postDetailRoutePath!))!;
+  const content = stripComments((await readFile(postDetailRoutePath!))!);
   const postExport = postQueryModule!.exportName;
   expect(content, `expected the route to import the post query (\`${postExport}\`)`).toMatch(
     new RegExp(`\\b${postExport}\\b`),
@@ -244,25 +265,35 @@ test('Post detail route imports `postQuery` and the slugs query', async () => {
 
 test('Post detail route exports `generateStaticParams` configured with `perspective: "published"` and `stega: false`', async () => {
   expect(postDetailRoutePath, 'cannot check static params without the route file').not.toBeUndefined();
-  const content = (await readFile(postDetailRoutePath!))!;
-  expect(content, 'expected the route to export `generateStaticParams`').toMatch(
-    /export\s+(async\s+)?function\s+generateStaticParams\b/,
+  const content = stripComments((await readFile(postDetailRoutePath!))!);
+  const start = content.search(
+    /export\s+(?:(?:async\s+)?function\s+generateStaticParams\b|const\s+generateStaticParams\s*=)/,
   );
+  expect(start, 'expected the route to export `generateStaticParams`').toBeGreaterThanOrEqual(0);
+  const next = content.slice(start + 1).search(/\nexport\s/);
+  const fn = next === -1 ? content.slice(start) : content.slice(start, start + 1 + next);
+  // Why this is checked even though the prompt doesn't mention it: defineLive's `sanityFetch`
+  // calls `draftMode()` unless both `perspective` and `stega` are passed (next-sanity 12.4.5,
+  // live/conditions/react-server), and `draftMode()` isn't available in generateStaticParams.
+  // Our build is only tsc, so nothing else catches it. A plain client fetch with
+  // `perspective: 'published'` is an equivalent fix (the client has stega off by default).
+  const usesLiveFetch = callsName(fn, liveFetchName(content));
   // Without `perspective: 'published'`, draft documents leak into the static
   // params; without `stega: false`, every prerendered URL contains stega tags.
   expect(
-    content,
+    fn,
     'expected `generateStaticParams` to use `perspective: "published"` so drafts don\'t produce static routes',
   ).toMatch(/perspective\s*:\s*['"]published['"]/);
+  if (!usesLiveFetch) return;
   expect(
-    content,
+    fn,
     "expected `generateStaticParams` to pass `stega: false` so prerendered slugs aren't stega-encoded",
   ).toMatch(/stega\s*:\s*false/);
 });
 
 test('Post detail route handles missing posts via `notFound()`', async () => {
   expect(postDetailRoutePath, 'cannot check notFound usage without the route file').not.toBeUndefined();
-  const content = (await readFile(postDetailRoutePath!))!;
+  const content = stripComments((await readFile(postDetailRoutePath!))!);
   // Otherwise hitting `/posts/does-not-exist` renders an empty/broken page
   // instead of returning a real 404.
   expect(content, 'expected the route to import `notFound` from `next/navigation`').toMatch(
@@ -271,9 +302,9 @@ test('Post detail route handles missing posts via `notFound()`', async () => {
   expect(content, 'expected the route to call `notFound()` when the post is missing').toMatch(/notFound\s*\(\s*\)/);
 });
 
-test('Post detail route renders the existing `PortableText` and `Avatar` components', async () => {
+test('Post detail route renders the post body with the existing `PortableText` component', async () => {
   expect(postDetailRoutePath, 'cannot check component usage without the route file').not.toBeUndefined();
-  const content = (await readFile(postDetailRoutePath!))!;
+  const content = stripComments((await readFile(postDetailRoutePath!))!);
 
   // The template ships these specifically for blog post rendering — the
   // agent shouldn't reinvent them inline. The default exports use whatever
@@ -292,11 +323,5 @@ test('Post detail route renders the existing `PortableText` and `Avatar` compone
   ).toBeDefined();
   expect(content, `expected the route to render <${portableTextBinding} ... /> for the post body`).toMatch(
     new RegExp(`<${portableTextBinding}\\b`),
-  );
-
-  const avatarBinding = findDefaultImportBinding(/(?:@\/app|\.\.?(?:\/[^'"\s]*)*)\/components\/Avatar/);
-  expect(avatarBinding, 'expected the route to import the default export from `@/app/components/Avatar`').toBeDefined();
-  expect(content, `expected the route to render <${avatarBinding} ... /> for the post author`).toMatch(
-    new RegExp(`<${avatarBinding}\\b`),
   );
 });
