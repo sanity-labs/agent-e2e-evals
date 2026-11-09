@@ -1,0 +1,22 @@
+diff --git a/dist/lib/agents/opencode/run.mjs b/dist/lib/agents/opencode/run.mjs
+index d55115dd54de90f4cbf23b4ad842103676149bcd..7533efc2cda81891f504527f0bd97afc4c58268c 100644
+--- a/dist/lib/agents/opencode/run.mjs
++++ b/dist/lib/agents/opencode/run.mjs
+@@ -18,7 +18,7 @@
+  */
+ 
+ import { spawnSync } from 'node:child_process';
+-import { mkdirSync, writeFileSync } from 'node:fs';
++import { mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+ import { dirname } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ 
+@@ -308,6 +308,8 @@ if (isMain) {
+   // unrecoverable crash before we can write).
+   let result;
+   try {
++    // Patched (sanity evals): remove this file before the agent starts, so the agent cannot read the runner.
++    unlinkSync(fileURLToPath(import.meta.url));
+     result = await runAgent(input);
+   } catch (e) {
+     result = {

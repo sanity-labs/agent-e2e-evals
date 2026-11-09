@@ -4,9 +4,5 @@ allowBuilds:
   protobufjs: false
   sharp: false
   ssh2: false
-minimumReleaseAgeExclude:
-  - '@vercel/agent-eval@0.14.2'
-overrides:
-  '@vercel/agent-eval-playground>next': 16.1.7
 patchedDependencies:
-  '@vercel/agent-eval@1.1.1': patches/@vercel__agent-eval@1.1.1.patch
+  '@vercel/agent-eval@2.6.0': patches/@vercel__agent-eval@2.6.0.patch
