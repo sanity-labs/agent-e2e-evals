@@ -1,0 +1,22 @@
+{
+  "name": "sanity-migration",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc --noEmit && sanity schema extract --force --path .sanity/schema.json"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "sanity": "^6.21.0",
+    "styled-components": "^6.3.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19.2.14",
+    "typescript": "^6",
+    "vitest": "^2.1.0"
+  }
+}
