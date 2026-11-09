@@ -192,6 +192,8 @@ const UPGRADE = MIGRATION;
 // The schema task needs no new dependencies. Protecting them stops a "file:" dependency from replacing the grader's
 // own packages in the verifier's fresh install; its grader also typechecks with the shipped tsconfig.
 const SCHEMA = { ...FUNCTION, protectedPaths: ['tsconfig.json', 'package.json', 'npm-shrinkwrap.json', '.npmrc'] };
+// The Astro task builds against the shipped local content API, so the agent must not change it, its scripts or dependencies.
+const ASTRO = { ...FUNCTION, protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs'] };
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -253,7 +255,9 @@ for (let run = 1; run <= runs; run++) {
                     ? UPGRADE
                     : evalName === 'sanity-schema'
                       ? SCHEMA
-                      : {}),
+                      : evalName === 'sanity-astro'
+                        ? ASTRO
+                        : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
