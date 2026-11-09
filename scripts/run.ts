@@ -198,6 +198,9 @@ const WEBHOOK = {
   ...FUNCTION,
   protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs', 'app/api/sample-witness/route.ts'],
 };
+// The App SDK read task grades only src/PostList.tsx: every other change (configs, App.tsx, dependencies) is kept out
+// of grading and reported as tampering. A root config file such as postcss.config.cjs is loaded by the grader's own vitest.
+const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
 
 const loaded: Array<{ config: Awaited<ReturnType<typeof loadConfig>>; experiment: string; model: string }> = [];
 for (const configPath of positionals) {
@@ -263,7 +266,9 @@ for (let run = 1; run <= runs; run++) {
                         ? ASTRO
                         : evalName === 'sanity-webhook'
                           ? WEBHOOK
-                          : {}),
+                          : evalName === 'sanity-appsdk-read'
+                            ? APPSDK
+                            : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
