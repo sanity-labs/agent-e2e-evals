@@ -1,0 +1,5 @@
+{"_id":"post-camp","_type":"post","title":"Camping by the lake","slug":{"_type":"slug","current":"camping"}}
+{"_id":"post-garden","_type":"post","title":"A small city garden","slug":{"_type":"slug","current":"garden"}}
+{"_id":"post-train","_type":"post","title":"The night train north","slug":{"_type":"slug","current":"night-train"}}
+{"_id":"drafts.post-camp","_type":"post","title":"Secret camping draft","slug":{"_type":"slug","current":"camping"}}
+{"_id":"drafts.post-new","_type":"post","title":"Unpublished winter walk","slug":{"_type":"slug","current":"winter-walk"}}

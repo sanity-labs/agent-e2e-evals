@@ -192,7 +192,8 @@ const UPGRADE = MIGRATION;
 // The schema task needs no new dependencies. Protecting them stops a "file:" dependency from replacing the grader's
 // own packages in the verifier's fresh install; its grader also typechecks with the shipped tsconfig.
 const SCHEMA = { ...FUNCTION, protectedPaths: ['tsconfig.json', 'package.json', 'npm-shrinkwrap.json', '.npmrc'] };
-// The Astro task builds against the shipped local content API, so the agent must not change it, its scripts or dependencies.
+// The Astro and draft-preview tasks build against the shipped local content API, so the agent must not change it, its
+// scripts or dependencies.
 const ASTRO = { ...FUNCTION, protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs'] };
 const WEBHOOK = {
   ...FUNCTION,
@@ -207,6 +208,11 @@ const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
 const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };
 // The singletons task lets the agent add any Studio file, so it protects what the schema task protects plus the Vite and
 // PostCSS configs the grader's vitest loads: one that exits would stop grading before any test runs.
+// The draft-preview task also protects the Vite and PostCSS configs, as the singletons task does.
+const DRAFTPREVIEW = {
+  ...ASTRO,
+  protectedPaths: [...ASTRO.protectedPaths, '**/{vite,postcss}.config.*', '**/.postcssrc*'],
+};
 const SINGLETONS = {
   ...FUNCTION,
   protectedPaths: [...SCHEMA.protectedPaths, '**/{vite,postcss}.config.*', '**/.postcssrc*'],
@@ -274,17 +280,19 @@ for (let run = 1; run <= runs; run++) {
                       ? SCHEMA
                       : evalName === 'sanity-astro'
                         ? ASTRO
-                        : evalName === 'sanity-webhook'
-                          ? WEBHOOK
-                          : evalName === 'sanity-appsdk-read'
-                            ? APPSDK
-                            : evalName === 'sanity-groq-cursor'
-                              ? GROQCURSOR
-                              : evalName === 'sanity-portable-text'
-                                ? PORTABLETEXT
-                                : evalName === 'sanity-singletons'
-                                  ? SINGLETONS
-                                  : {}),
+                        : evalName === 'sanity-draft-preview'
+                          ? DRAFTPREVIEW
+                          : evalName === 'sanity-webhook'
+                            ? WEBHOOK
+                            : evalName === 'sanity-appsdk-read'
+                              ? APPSDK
+                              : evalName === 'sanity-groq-cursor'
+                                ? GROQCURSOR
+                                : evalName === 'sanity-portable-text'
+                                  ? PORTABLETEXT
+                                  : evalName === 'sanity-singletons'
+                                    ? SINGLETONS
+                                    : {}),
               setup: snapshot.wrapSetup(config.setup),
               onRunComplete: async (context) => {
                 snapshot.invocationEnded();
