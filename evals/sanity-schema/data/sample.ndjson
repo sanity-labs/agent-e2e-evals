@@ -1,0 +1,4 @@
+{"_id":"author-ada","_type":"author","name":"Ada Lovelace"}
+{"_id":"post-hello","_type":"post","title":"Hello world","slug":{"_type":"slug","current":"hello-world"},"author":{"_type":"reference","_ref":"author-ada"}}
+{"_id":"page-home","_type":"page","title":"Home","slug":{"_type":"slug","current":"home"},"language":"en","showInNav":true,"navLabel":"Home","sections":[{"_key":"h1","_type":"hero","heading":"Welcome to Acme"},{"_key":"p1","_type":"postList","posts":[{"_key":"r1","_type":"reference","_ref":"post-hello"}]}]}
+{"_id":"page-terms","_type":"page","title":"Terms","slug":{"_type":"slug","current":"terms"},"language":"en","sections":[{"_key":"t1","_type":"richText","body":[{"_key":"b1","_type":"block","style":"normal","markDefs":[],"children":[{"_key":"s1","_type":"span","text":"Our terms.","marks":[]}]}]}]}
