@@ -96,6 +96,12 @@ const SINGLETONS = {
   ...FUNCTION,
   protectedPaths: [...SCHEMA.protectedPaths, '**/{vite,postcss}.config.*', '**/.postcssrc*'],
 };
+// The draft-preview task builds against the same local content API as the Astro task, and also protects the Vite and
+// PostCSS configs, as the singletons task does.
+const DRAFTPREVIEW = {
+  ...ASTRO,
+  protectedPaths: [...ASTRO.protectedPaths, '**/{vite,postcss}.config.*', '**/.postcssrc*'],
+};
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
@@ -110,6 +116,7 @@ export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyF
   'sanity-groq-cursor': GROQCURSOR,
   'sanity-portable-text': PORTABLETEXT,
   'sanity-singletons': SINGLETONS,
+  'sanity-draft-preview': DRAFTPREVIEW,
 };
 
 export async function main(argv: string[]): Promise<string> {
