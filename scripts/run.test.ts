@@ -25,6 +25,10 @@ test('the App SDK read fixture replays only the answer file to the verifier', ()
   expect(TASK_OPTIONS['sanity-appsdk-read']?.protectedPaths).toEqual(['!src/PostList.tsx']);
 });
 
+test('the GROQ cursor fixture replays only the answer file to the verifier', () => {
+  expect(TASK_OPTIONS['sanity-groq-cursor']?.protectedPaths).toEqual(['!src/pagination.ts']);
+});
+
 async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
   const resultsRoot = join(root, 'results');
   mkdirSync(resultsRoot, { recursive: true });

@@ -1,0 +1,12 @@
+{"_id":"post-apple","_type":"post","title":"Apple harvest","publishedAt":"2026-02-20T08:00:00Z"}
+{"_id":"post-birch","_type":"post","title":"Birch bark","publishedAt":"2026-02-18T08:00:00Z"}
+{"_id":"post-cedar","_type":"post","title":"Cedar smoke","publishedAt":"2026-02-18T08:00:00Z"}
+{"_id":"post-dahlia","_type":"post","title":"Dahlia beds","publishedAt":"2026-02-18T08:00:00Z"}
+{"_id":"post-elm","_type":"post","title":"Elm disease","publishedAt":"2026-02-15T12:30:00Z"}
+{"_id":"post-fern","_type":"post","title":"Fern spores","publishedAt":"2026-02-11T07:45:00Z"}
+{"_id":"post-gorse","_type":"post","title":"Gorse in bloom","publishedAt":"2026-02-11T07:45:00Z"}
+{"_id":"post-hazel","_type":"post","title":"Hazel catkins","publishedAt":"2026-02-02T10:00:00Z"}
+{"_id":"post-iris","_type":"post","title":"Iris bulbs"}
+{"_id":"post-juniper","_type":"post","title":"Juniper berries"}
+{"_id":"author-kim","_type":"author","title":"Kim","publishedAt":"2026-02-25T08:00:00Z"}
+{"_id":"post-larch","_type":"post","title":"Larch needles","publishedAt":"2026-01-30T16:00:00Z"}

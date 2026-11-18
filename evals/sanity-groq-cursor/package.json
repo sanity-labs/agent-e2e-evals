@@ -1,0 +1,14 @@
+{
+  "name": "sanity-groq-cursor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "groq-js": "2.0.1",
+    "typescript": "5.9.3",
+    "vitest": "4.0.8"
+  }
+}
