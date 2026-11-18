@@ -79,6 +79,10 @@ const UPGRADE = MIGRATION;
 const SCHEMA = { ...FUNCTION, protectedPaths: ['tsconfig.json', 'package.json', 'npm-shrinkwrap.json', '.npmrc'] };
 // The Astro task builds against the shipped local content API, so the agent must not change it, its scripts or dependencies.
 const ASTRO = { ...FUNCTION, protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs'] };
+const WEBHOOK = {
+  ...FUNCTION,
+  protectedPaths: [...SCHEMA.protectedPaths, 'scripts/sample-api.mjs', 'app/api/sample-witness/route.ts'],
+};
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
@@ -88,6 +92,7 @@ export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyF
   'sanity-studio-upgrade': UPGRADE,
   'sanity-schema': SCHEMA,
   'sanity-astro': ASTRO,
+  'sanity-webhook': WEBHOOK,
 };
 
 export async function main(argv: string[]): Promise<string> {
