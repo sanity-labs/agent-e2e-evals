@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@vercel/agent-eval@2.6.0': 2711096ffe3f990b27497c2a4ff5489a2ba0bf56dc303822e68afe840f933f7e
+  '@vercel/agent-eval@2.6.0': 0afb43f66a8d128cbbf4450c6695366933595096c6bce518aab9e7b8afbc66a8
 
 importers:
 
@@ -19,7 +19,7 @@ importers:
         version: 24.12.2
       '@vercel/agent-eval':
         specifier: 2.6.0
-        version: 2.6.0(patch_hash=2711096ffe3f990b27497c2a4ff5489a2ba0bf56dc303822e68afe840f933f7e)
+        version: 2.6.0(patch_hash=0afb43f66a8d128cbbf4450c6695366933595096c6bce518aab9e7b8afbc66a8)
       cheerio:
         specifier: 1.2.0
         version: 1.2.0
@@ -2453,7 +2453,7 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  '@vercel/agent-eval@2.6.0(patch_hash=2711096ffe3f990b27497c2a4ff5489a2ba0bf56dc303822e68afe840f933f7e)':
+  '@vercel/agent-eval@2.6.0(patch_hash=0afb43f66a8d128cbbf4450c6695366933595096c6bce518aab9e7b8afbc66a8)':
     dependencies:
       '@ai-sdk/anthropic': 1.2.12(zod@3.25.76)
       '@vercel/sandbox': 3.9.0

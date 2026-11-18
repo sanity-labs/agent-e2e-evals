@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { exportRun, wilson } from './export-results.ts';
+import { exportRun, vitestPassed, wilson } from './export-results.ts';
 
 test('classifies attempts from the saved status and never guesses infra', () => {
   const runDir = mkdtempSync(join(tmpdir(), 'export-'));
@@ -12,7 +12,7 @@ test('classifies attempts from the saved status and never guesses infra', () => 
     if (result) {
       mkdirSync(join(outputDir, 'demo/run-1/outputs'), { recursive: true });
       writeFileSync(join(outputDir, 'demo/run-1/result.json'), JSON.stringify(result));
-      if (testsRan) writeFileSync(join(outputDir, 'demo/run-1/outputs/eval.txt'), 'Tests ...');
+      if (testsRan) writeFileSync(join(outputDir, 'demo/run-1/outputs/eval.txt'), ' Tests  1 passed (1)');
     }
     const invocations = [{ status: 'failed', seconds: 100, costUsd: 0.01 }];
     attempts.push({ experiment: 'm', eval: 'demo', run, invocations, ...(result ? { outputDir } : {}), ...extra });
@@ -92,7 +92,7 @@ test('a copied batch still finds its attempts, for relative and older absolute p
   for (const run of [1, 2]) {
     mkdirSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/outputs`), { recursive: true });
     writeFileSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/result.json`), JSON.stringify({ status: 'passed' }));
-    writeFileSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/outputs/eval.txt`), 'Tests ...');
+    writeFileSync(join(runDir, `m/demo-run-${run}/ts/demo/run-1/outputs/eval.txt`), ' Tests  1 passed (1)');
   }
   const invocations = [{ status: 'passed', seconds: 1 }];
   writeFileSync(
@@ -123,7 +123,7 @@ test('presentation, live content, starter and blueprints stay unknown whatever t
       const outputDir = join(runDir, 'm', `${evalName}-run-${run}`);
       mkdirSync(join(outputDir, evalName, 'run-1/outputs'), { recursive: true });
       writeFileSync(join(outputDir, evalName, 'run-1/result.json'), JSON.stringify({ status }));
-      writeFileSync(join(outputDir, evalName, 'run-1/outputs/eval.txt'), 'Tests ...');
+      writeFileSync(join(outputDir, evalName, 'run-1/outputs/eval.txt'), ' Tests  1 passed (1)');
       attempts.push({ experiment: 'm', eval: evalName, run, invocations: [{ status, seconds: 1 }], outputDir });
     }
   }
@@ -181,7 +181,7 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
     const dir = join(runDir, outputDir, 'demo/run-1');
     mkdirSync(join(dir, 'outputs'), { recursive: true });
     writeFileSync(join(dir, 'result.json'), JSON.stringify({ status: run === 2 ? 'failed' : 'passed', usage: null }));
-    writeFileSync(join(dir, 'outputs/eval.txt'), 'Tests ...');
+    writeFileSync(join(dir, 'outputs/eval.txt'), ' Tests  1 passed (1)');
     writeFileSync(join(dir, 'transcript-raw.jsonl'), `${transcript.join('\n')}\nnot json\n`);
     for (let fileIndex = 0; fileIndex < files; fileIndex++) {
       mkdirSync(join(dir, 'project/app'), { recursive: true });
@@ -199,6 +199,19 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
     { status: 'passed', seconds: 20 },
   ]); // retry with one unpriced invocation: unknown, not a partial $0.10
   add('m', 6, 5, 0, [step(1)]); // a reported $0 stays $0
+  // Claude Code and Codex transcripts opening a skill: this exporter can't read their formats, so unknown, not "unused".
+  const claudeRead = {
+    type: 'assistant',
+    message: {
+      content: [{ type: 'tool_use', name: 'Read', input: { file_path: '/w/.agents/skills/sanity/SKILL.md' } }],
+    },
+  };
+  const codexCat = {
+    type: 'item.completed',
+    item: { type: 'command_execution', command: 'cat .agents/skills/sanity/SKILL.md' },
+  };
+  add('n-skills', 1, 10, undefined, [JSON.stringify(claudeRead)]);
+  add('n-skills', 3, 10, undefined, [JSON.stringify(codexCat)]);
   // Saved by run.ts at start, then the machine stopped: no runner result, so not completed or measured.
   attempts.push({ experiment: 'm', eval: 'demo', run: 3, invocations: [] });
   attempts.push({ experiment: 'm', eval: 'demo', run: 2, invocations: [], skipped: 'batch spend reached the cap' });
@@ -239,6 +252,12 @@ test('table rows: saved vs completed, infra kept out of pass@1 with reasons, med
     skillUsed: 0,
     filesCaptured: { median: null, total: null, known: 0 },
   });
+  expect(report.rows[2]).toMatchObject({
+    group: 'n-skills × demo',
+    skillsInstalled: true,
+    skillUsed: null,
+    skillUsedKnown: 0,
+  });
 });
 
 test('an interrupted batch (no endedAt) shows planned attempts that never saved and is never valid', () => {
@@ -246,7 +265,7 @@ test('an interrupted batch (no endedAt) shows planned attempts that never saved 
   const outputDir = 'a/demo-run-1/ts';
   mkdirSync(join(runDir, outputDir, 'demo/run-1/outputs'), { recursive: true });
   writeFileSync(join(runDir, outputDir, 'demo/run-1/result.json'), JSON.stringify({ status: 'passed' }));
-  writeFileSync(join(runDir, outputDir, 'demo/run-1/outputs/eval.txt'), 'Tests ...');
+  writeFileSync(join(runDir, outputDir, 'demo/run-1/outputs/eval.txt'), ' Tests  1 passed (1)');
   const manifest = {
     runId: 'r5',
     experiments: [{ name: 'a' }, { name: 'b' }],
@@ -288,4 +307,11 @@ test('a failed attempt whose grader reported UNKNOWN stays unknown; a code frame
     [1, 'unknown'],
     [2, 'agent'],
   ]);
+});
+
+test('a saved pass needs a vitest summary with no failures, else it is unknown', () => {
+  expect(vitestPassed('\x1b[2m Tests \x1b[22m 12 passed (12)\n')).toBe(true);
+  expect(vitestPassed(' Tests  1 failed | 11 passed (12)\n')).toBe(false);
+  expect(vitestPassed('no summary at all')).toBe(false);
+  expect(vitestPassed(' Tests  no tests\n')).toBe(false);
 });
