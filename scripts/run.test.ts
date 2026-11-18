@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import { SLUG_HINT } from '../experiments/gpt-5.6-terra-slug-hint.ts';
-import { main } from './run.ts';
+import { main, TASK_OPTIONS } from './run.ts';
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -20,6 +20,10 @@ const FAKE_KEY = 'sk-or-FAKE-MARKER-123';
 writeFileSync(keyFile, FAKE_KEY);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 afterEach(() => vi.unstubAllGlobals());
+
+test('the App SDK read fixture replays only the answer file to the verifier', () => {
+  expect(TASK_OPTIONS['sanity-appsdk-read']?.protectedPaths).toEqual(['!src/PostList.tsx']);
+});
 
 async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
   const resultsRoot = join(root, 'results');
