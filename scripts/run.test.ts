@@ -29,6 +29,10 @@ test('the GROQ cursor fixture replays only the answer file to the verifier', () 
   expect(TASK_OPTIONS['sanity-groq-cursor']?.protectedPaths).toEqual(['!src/pagination.ts']);
 });
 
+test('the Portable Text fixture replays only the Studio config and schema types to the verifier', () => {
+  expect(TASK_OPTIONS['sanity-portable-text']?.protectedPaths).toEqual(['!{sanity.config.ts,schemaTypes/**}']);
+});
+
 async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
   const resultsRoot = join(root, 'results');
   mkdirSync(resultsRoot, { recursive: true });
