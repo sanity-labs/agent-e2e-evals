@@ -9,89 +9,51 @@ We use the [@vercel/agent-eval framework](https://github.com/vercel-labs/agent-e
 
 Here's some terminology you'll see used throughout @vercel/agent-eval and this project:
 
-- Model - the LLM that's using the agent harness (ex. Composer 2.5)
-- Harness - the wrapper around the raw model which exposes tools, prompting, etc. for performing tasks (ex. Cursor, Claude Code)
-- Agent - the combination of a model and harness (ex. Codex + GPT-5.5)
+- Model - the LLM that's using the agent harness (ex. Claude Haiku 5.5)
+- Harness - the wrapper around the raw model which exposes tools, prompting, etc. for performing tasks (we use OpenCode for every model)
+- Agent - the combination of a model and harness (ex. OpenCode + GPT-5.6 Terra)
 - Eval - a task we give an agent to measure overall coding capability
   - Each eval includes a prompt, a test suite for grading, and any additional project files to use in the task
   - These live in `./evals/`
 - Experiment - the configuration used when we run our eval suite
   - These live in `./experiments/` and include the harness, model, and other parameters for actually running the evals
-  - We define a separate experiment for each variant (one of baseline, MCP, or skills) which are then grouped together in the results summary
+  - We define a separate experiment for each variant (baseline or skills)
 - Results - the raw outputs from @vercel/agent-eval of each experiment which can be used to determine how well each experiment performed on the evals
-  - When you run `agent-eval`, results are stored in `./results/` locally
-  - Browse these with `pnpm playground`, which launches a local web UI for inspecting runs, transcripts, and side-by-side comparisons
+  - Each batch is stored in `./results/<runId>/` locally
 - Results summary - a JSON representation of the eval results, the format itself is defined in `./published/` and `scripts/export-results.ts`
 
 ## Dev tools
 
-To setup the repo for local development, run these commands:
-
-1. Ensure [mise-config](https://github.com/sanity-io/mise-config) has been set up
-2. Install 1Password and get access to the "Dev Secrets" vault
-   - This isn't required to run evals, but `fnox` will be very sad since it can't access the secrets in 1Password
-3. Clone the repo and run `mise trust` + `mise install`
-4. Cache the secrets from fnox `fnox sync --provider age --local-file`
-   - This exports the secrets from 1Password and encrypts them locally, not required but makes it so you aren't prompted by 1Password continuously
-5. Run `pnpm install`
+1. Install [mise](https://mise.jdx.dev/), then clone the repo and run `mise trust` + `mise install` (Node 24, pnpm 11)
+2. Run `pnpm install`
+3. Before opening a PR, run `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip` and `pnpm format` (CI runs the same checks)
 
 ## Working with real Sanity projects
 
-Some evals go beyond editing files and actually interact with the Sanity backend (ex. creating projects, deploying studios, etc.)
-These run against real projects and organizations against the staging Sanity instance, authenticated with the `SANITY_AUTH_TOKEN` staging token (see `fnox.toml`).
+Most evals never call Sanity. Graders run separately from the agent. Several use local stand-ins for the Sanity query API and hidden test data, including fixed cases. We audit transcripts and changed files; public graders can be learned, so a task that leaks needs a new version. A few live tasks (the getting-started scaffold) create real projects on the Sanity staging instance, authenticated with the `SANITY_AUTH_TOKEN` staging token.
 
-When a fixture or prompt needs an organization or project, use the shared staging org `oEibUYrzC` and project `k6xtz0tk`.
-Projects created in the `oEibUYrzC` org are automatically cleaned up after CI finishes (see `scripts/cleanup-eval-projects.ts`), so don't worry about leaving things behind.
-Prefer referencing this org/project over standing up new ones so runs stay reproducible and cleanup stays manageable.
+The runner never deletes projects. Before and after each batch it saves the list of staging projects the token can see, and names the ones first seen during the batch, for someone to review and delete by hand. With a shared token and other work going on, "first seen during the batch" does not prove the batch created them.
 
-CI is already configured with the right tokens for this org, so evals that hit these APIs work out of the box when run through GitHub Actions.
+Prefer evals that don't need Sanity APIs.
 
-Note that when possible, we prefer to write evals that don't need to talk to Sanity APIs, but this may change in the future as we build out better automation for running evals.
+## Running evals
 
-## Running scripts
+Every model runs in the same harness (OpenCode) through OpenRouter, so the model is the main thing that changes between experiments. Experiments live in `experiments/`: one file per model, plus variants such as `-skills`, which installs Sanity's agent skills.
 
-Scripts are mostly defined in package.json and meant to be run via pnpm, but we try to keep parity with mise.
-
-You can use `pnpm run` or `mise tasks` to get a list of scripts to run.
-
-### Running evals
-
-Run `pnpm precheck` before starting a long eval run to validate required env vars and Sanity staging access.
-The shared experiment setup also runs this check before agents start.
-
-If you're working on one eval you can use `pnpm test-eval` to run a single eval specifically, rather than running the whole suite.
-Use `pnpm test-eval --help` to see the options for the script.
-
-To run the full eval suite, use the `agent-eval` CLI directly.
-You can run evals via GitHub Actions by [triggering the workflow to run manually](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow), see `.github/workflows/evals.yml` for more info.
-
-### Testing MCP and skills branches
-
-The Evals workflow accepts two optional source overrides:
-
-- `mcp_url`: the full MCP endpoint URL for an already-deployed Mellon branch. The endpoint must be reachable from the eval sandboxes and accept the staging `SANITY_AUTH_TOKEN`. Empty uses `https://mcp.sanity.work/`. This does not build or deploy Mellon.
-- `skills_branch`: the branch to install from `sanity-io/agent-toolkit`, for example `fix/groq-guidance`. Empty uses the repository's default branch.
-
-Only the corresponding MCP or skills experiments use each override. Baseline experiments are unchanged. Select experiments with the `experiments` input as usual.
-
-When either override is supplied, CI bypasses cached results and skips leaderboard export and publication. Download the raw results artifact to inspect the run; its `sources.json` records the requested endpoint, skills branch, and eval commit. A branch or endpoint can change over time, so these values do not pin the source commits.
-
-For local runs, set `SANITY_MCP_URL` and/or `SANITY_SKILLS_BRANCH`:
+Run a batch with `scripts/run.ts`:
 
 ```sh
-SANITY_MCP_URL=https://your-deployed-mcp.example.com/ \
-  pnpm exec agent-eval run-all gpt-5.5-mcp --force
-
-SANITY_SKILLS_BRANCH=fix/groq-guidance \
-  pnpm exec agent-eval run-all gpt-5.5-skills --force
+node scripts/run.ts --key-file ~/.openrouter-key --evals sanity-typegen --runs 3 --concurrency 2 --cap 5 experiments/claude-haiku-5.5.ts
 ```
 
-Use a separate worktree with an empty `results/` directory for local custom-source runs, and do not export those results to the leaderboard. Keep `--force` on subsequent custom runs: the framework's cache does not account for source overrides or new commits on the same branch. Local MCP runs still use `https://mcp.sanity.io/` when `SANITY_MCP_URL` is unset; set it explicitly to the staging endpoint for staging evals.
+- `--key-file` is a file holding an OpenRouter key. The key is in the agent's environment, so use a separate key with a spend limit for each batch.
+- `--cap` is a spend threshold for the whole batch in USD. The runner checks OpenRouter usage before each attempt starts and starts no new attempts past the cap. Attempts already running finish, so the final total can exceed it. `--attempt-stop` adds a per-attempt threshold, checked the same way.
+- Everything for one batch is written to `results/<runId>/`, including a single `manifest.json` that records the experiments, prompt hashes, every attempt and its cost.
 
-### Browsing results
+Smoke-test on one eval and one cheap model before a larger batch.
 
-Use `pnpm playground` (or `pnpm playground:watch`) to browse eval outputs in `./results` in a local web UI.
-This is a good tool when iterating on evals locally and trying to understand why an assertion is failing, what tools an agent is using, etc.
+## Results
 
-Use `pnpm export-results` to generate our results summary JSON (see [`published/README.md`](published/README.md)).
-You can also review the raw result files directly in `./results/`.
+Summarise a batch with `node scripts/export-results.ts results/<runId> [report.json]`. It prints one row per model and task: attempts planned, saved and completed, passes, infrastructure failures, cost, tokens and time. There is no ranking.
+
+An attempt passes only if the project's configured scripts and every check in the eval's `EVAL.ts` pass. Infrastructure failures (rate limits, sandbox faults) are never guessed. Mark one by writing the evidence in `results/<runId>/labels.json`. The starter, presentation, live-content and Functions (blueprints) evals give a label-only outcome: it stays unknown until someone labels it. The July results in `published/` were produced by the previous runner and use its scoring.

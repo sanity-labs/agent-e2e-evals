@@ -4,7 +4,9 @@
   "categories": {
     "correctness": "error"
   },
-  "rules": {},
+  "rules": {
+    "eslint/id-length": ["error", { "min": 2, "exceptions": ["i", "j", "_"], "properties": "never" }]
+  },
   "env": {
     "builtin": true
   },

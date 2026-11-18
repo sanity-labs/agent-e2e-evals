@@ -185,7 +185,9 @@ test('`postQuery` projects the fields the page needs (content, author dereferenc
   let resolvedBody = body;
   const seen = new Set<string>();
   for (let depth = 0; depth < 5; depth++) {
-    const interpolations = [...resolvedBody.matchAll(fragmentRe)].map((m) => m[1]!).filter((name) => !seen.has(name));
+    const interpolations = [...resolvedBody.matchAll(fragmentRe)]
+      .map((match) => match[1]!)
+      .filter((name) => !seen.has(name));
     if (interpolations.length === 0) break;
     for (const name of interpolations) {
       seen.add(name);
