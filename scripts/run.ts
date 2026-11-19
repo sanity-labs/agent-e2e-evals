@@ -70,11 +70,14 @@ const STARTER = { protectedPaths: ['package.json', 'build.mjs'], copyFiles: 'cha
 // The Function and migration tasks save their changed files for failure review. Deleted
 // files are not saved: changed-file evidence, not a replayable final tree.
 const FUNCTION = { copyFiles: 'changed' as const };
+// The migration grader typechecks with the shipped tsconfig.json, so the agent must not change it.
+const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
   'sanity-nextjs-starter': STARTER,
   'sanity-blueprints': FUNCTION,
+  'sanity-migration': MIGRATION,
 };
 
 export async function main(argv: string[]): Promise<string> {
