@@ -1,0 +1,5 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "include": [".astro/types.d.ts", "**/*"],
+  "exclude": ["dist", "studio-schema", "scripts", "EVAL.ts", "vitest.config.ts", "__agent_eval__"]
+}

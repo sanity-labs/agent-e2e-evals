@@ -1,0 +1,28 @@
+{
+  "name": "sanity-astro",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "license": "UNLICENSED",
+  "scripts": {
+    "check": "NODE_OPTIONS=--import=./scripts/sample-api.mjs astro check",
+    "build": "npm run check && NODE_OPTIONS=--import=./scripts/sample-api.mjs astro build",
+    "dev": "astro dev"
+  },
+  "dependencies": {
+    "@portabletext/to-html": "6.0.0",
+    "@sanity/astro": "3.6.0",
+    "@sanity/client": "8.14.1",
+    "@sanity/image-url": "2.1.1",
+    "astro": "7.4.5",
+    "astro-portabletext": "1.0.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "cheerio": "1.2.0",
+    "groq-js": "2.0.1",
+    "nock": "15.0.5",
+    "typescript": "^6",
+    "vitest": "^2.1.0"
+  }
+}
