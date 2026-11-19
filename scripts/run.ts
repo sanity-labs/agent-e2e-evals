@@ -72,12 +72,15 @@ const STARTER = { protectedPaths: ['package.json', 'build.mjs'], copyFiles: 'cha
 const FUNCTION = { copyFiles: 'changed' as const };
 // The migration grader typechecks with the shipped tsconfig.json, so the agent must not change it.
 const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
+// The upgrade task changes package.json on purpose, so only tsconfig.json is protected (the grader typechecks with it).
+const UPGRADE = MIGRATION;
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
   'sanity-nextjs-starter': STARTER,
   'sanity-blueprints': FUNCTION,
   'sanity-migration': MIGRATION,
+  'sanity-studio-upgrade': UPGRADE,
 };
 
 export async function main(argv: string[]): Promise<string> {
