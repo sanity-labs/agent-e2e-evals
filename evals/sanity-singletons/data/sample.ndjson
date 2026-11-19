@@ -1,0 +1,4 @@
+{"_id":"author-ada","_type":"author","name":"Ada Lovelace"}
+{"_id":"post-hello","_type":"post","title":"Hello world","slug":{"_type":"slug","current":"hello-world"},"author":{"_type":"reference","_ref":"author-ada"}}
+{"_id":"page-about","_type":"page","title":"About us","slug":{"_type":"slug","current":"about"}}
+{"_id":"campaign-black-friday","_type":"campaign","title":"Black Friday","season":"autumn","headline":"Everything 30% off"}

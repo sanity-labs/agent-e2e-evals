@@ -5,6 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
@@ -31,6 +32,26 @@ test('the GROQ cursor fixture replays only the answer file to the verifier', () 
 
 test('the Portable Text fixture replays only the Studio config and schema types to the verifier', () => {
   expect(TASK_OPTIONS['sanity-portable-text']?.protectedPaths).toEqual(['!{sanity.config.ts,schemaTypes/**}']);
+});
+
+test('the singletons fixture keeps dependency, Vite and PostCSS changes from the verifier but replays other Studio files', async () => {
+  const protectedPaths = TASK_OPTIONS['sanity-singletons']?.protectedPaths ?? [];
+  const verifier = createRequire(import.meta.url)
+    .resolve('@vercel/agent-eval/package.json')
+    .replace(/package\.json$/, 'dist/lib/agents/verifier.js');
+  const { createProtectedPathMatcher, VERIFIER_PROTECTED_PATHS } = await import(verifier);
+  const isProtected = createProtectedPathMatcher([...VERIFIER_PROTECTED_PATHS, ...protectedPaths]);
+  const replayed = [
+    'sanity.config.ts',
+    'structure/index.ts',
+    'plugins/singletons.tsx',
+    'seasons.json',
+    'schemaTypes/page.ts',
+  ];
+  const blocked = ['postcss.config.cjs', 'postcss.config.ts', '.postcssrc.json', 'sub/.postcssrc', 'vite.config.mjs'];
+  blocked.push('package.json', 'npm-shrinkwrap.json', '.npmrc', 'tsconfig.json', 'vitest.config.mjs', 'EVAL.ts');
+  expect(replayed.filter(isProtected)).toEqual([]);
+  expect(blocked.filter((path) => !isProtected(path))).toEqual([]);
 });
 
 async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {

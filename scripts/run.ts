@@ -90,6 +90,12 @@ const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
 const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
 // The Portable Text task grades only the Studio config and schema types; every other change is reported as tampering.
 const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };
+// The singletons task lets the agent add any Studio file, so it protects what the schema task protects plus the Vite and
+// PostCSS configs the grader's vitest loads: one that exits would stop grading before any test runs.
+const SINGLETONS = {
+  ...FUNCTION,
+  protectedPaths: [...SCHEMA.protectedPaths, '**/{vite,postcss}.config.*', '**/.postcssrc*'],
+};
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
@@ -103,6 +109,7 @@ export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyF
   'sanity-appsdk-read': APPSDK,
   'sanity-groq-cursor': GROQCURSOR,
   'sanity-portable-text': PORTABLETEXT,
+  'sanity-singletons': SINGLETONS,
 };
 
 export async function main(argv: string[]): Promise<string> {
