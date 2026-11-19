@@ -48,7 +48,7 @@ function getDeps(pkg: Record<string, unknown> | undefined): Record<string, strin
 async function collect(pattern: string): Promise<string[]> {
   const results: string[] = [];
   for await (const entry of fs.glob(pattern, {
-    exclude: (p) => p.includes('node_modules'),
+    exclude: (filePath) => filePath.includes('node_modules'),
   })) {
     results.push(entry);
   }
@@ -75,7 +75,7 @@ async function readAllSource(): Promise<string> {
     files.push(...(await collect(`${rootDir}/**/*${ext}`)));
   }
   const contents = await Promise.all(files.map((file) => readFile(file)));
-  return contents.filter((c): c is string => c !== undefined).join('\n');
+  return contents.filter((content): content is string => content !== undefined).join('\n');
 }
 
 const appDir = await findAppDir();

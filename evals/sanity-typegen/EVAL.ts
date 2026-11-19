@@ -28,8 +28,8 @@ async function readJson(filePath: string): Promise<unknown> {
 }
 
 async function firstExisting(...paths: string[]): Promise<string | undefined> {
-  for (const p of paths) {
-    if ((await readFile(p)) !== undefined) return p;
+  for (const filePath of paths) {
+    if ((await readFile(filePath)) !== undefined) return filePath;
   }
   return undefined;
 }
@@ -66,7 +66,7 @@ test('studio schema was extracted to a schema.json', async () => {
   const schema = await readJson(extractedSchemaPath!);
   expect(Array.isArray(schema), 'schema.json should be a JSON array of type definitions').toBe(true);
 
-  const names = new Set((schema as Array<{ name?: string }>).map((t) => t?.name));
+  const names = new Set((schema as Array<{ name?: string }>).map((schemaType) => schemaType?.name));
   for (const expected of ['post', 'page', 'person', 'settings']) {
     expect(names, `schema.json should contain the "${expected}" type`).toContain(expected);
   }
@@ -123,8 +123,8 @@ test('typegen is configured via `sanity.cli.{ts,js}`, not the deprecated `sanity
 test('a workspace has a script that runs typegen', async () => {
   const pkgPaths = ['frontend/package.json', 'studio/package.json', 'package.json'];
   const allScripts: string[] = [];
-  for (const p of pkgPaths) {
-    const pkg = (await readJson(p)) as { scripts?: Record<string, string> } | undefined;
+  for (const packagePath of pkgPaths) {
+    const pkg = (await readJson(packagePath)) as { scripts?: Record<string, string> } | undefined;
     if (pkg?.scripts) allScripts.push(...Object.values(pkg.scripts));
   }
   expect(

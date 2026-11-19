@@ -18,8 +18,8 @@ async function readFile(filePath: string): Promise<string | undefined> {
 }
 
 async function firstExisting(...paths: string[]): Promise<string | undefined> {
-  for (const p of paths) {
-    if ((await readFile(p)) !== undefined) return p;
+  for (const filePath of paths) {
+    if ((await readFile(filePath)) !== undefined) return filePath;
   }
   return undefined;
 }

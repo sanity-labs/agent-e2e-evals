@@ -37,7 +37,7 @@ function getDeps(pkg: Record<string, unknown> | undefined): Record<string, strin
 
 async function collect(pattern: string): Promise<string[]> {
   const results: string[] = [];
-  for await (const entry of fs.glob(pattern, { exclude: (p) => p.includes('node_modules') })) {
+  for await (const entry of fs.glob(pattern, { exclude: (filePath) => filePath.includes('node_modules') })) {
     results.push(entry);
   }
   return results;
@@ -114,8 +114,8 @@ test('env files reference the canonical Sanity env vars', async () => {
     ...(await collect(`${rootDir}/**/.env.development`)),
     ...(await collect(`${rootDir}/**/.env.development.local`)),
   ];
-  const env = (await Promise.all(envFiles.map((p) => readFile(p))))
-    .filter((c): c is string => c !== undefined)
+  const env = (await Promise.all(envFiles.map((filePath) => readFile(filePath))))
+    .filter((content): content is string => content !== undefined)
     .join('\n');
   expect(env).toMatch(/NEXT_PUBLIC_SANITY_PROJECT_ID/);
   expect(env).toMatch(/NEXT_PUBLIC_SANITY_DATASET/);
