@@ -73,13 +73,16 @@ const SKILL_READ = /\.agents\/skills\/|skills\/[a-z0-9-]+\/(SKILL\.md|references
 /**
  * What the saved transcript shows: tokens summed over OpenCode's step_finish events (the result's
  * usage is null for OpenCode; OpenCode's total includes cache reads). After a runner retry only the
- * final invocation's transcript is saved, so tokens cover that invocation only. Also reports whether any tool call used a skill. Null when there is no transcript.
+ * final invocation's transcript is saved, so tokens cover that invocation only. Also reports whether any tool call used a skill.
+ * Null when there is no transcript, and skill use is null for transcripts that are not OpenCode's (Claude Code,
+ * Codex): this reader can't see their tool calls, so it must not report "not used".
  */
 function readTranscript(runDir: string) {
   const path = join(runDir, 'transcript-raw.jsonl');
   if (!existsSync(path)) return { tokens: null, skillUsed: null };
   let tokens: number | null = null;
   let skillUsed = false;
+  let openCode = false;
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     if (!line.trim()) continue;
     let event: { type?: string; part?: { tool?: string; tokens?: { total?: number }; state?: { input?: unknown } } };
@@ -88,6 +91,7 @@ function readTranscript(runDir: string) {
     } catch {
       continue;
     }
+    if ((event.type === 'step_finish' || event.type === 'tool_use') && event.part) openCode = true;
     if (event.type === 'step_finish' && typeof event.part?.tokens?.total === 'number')
       tokens = (tokens ?? 0) + event.part.tokens.total;
     if (
@@ -96,7 +100,7 @@ function readTranscript(runDir: string) {
     )
       skillUsed = true;
   }
-  return { tokens, skillUsed };
+  return { tokens, skillUsed: openCode ? skillUsed : null };
 }
 
 /**
@@ -121,6 +125,11 @@ function attemptDir(batchDir: string, runId: string, outputDir: string) {
   return runIdIndex === -1 ? outputDir : resolve(batchDir, outputDir.slice(runIdIndex + runId.length + 2));
 }
 
+/** True when vitest's summary line reports passed tests and none failed. */
+export function vitestPassed(output: string): boolean {
+  const line = stripVTControlCharacters(output).match(/^\s*Tests\s+(.*)$/m)?.[1] ?? '';
+  return /\b\d+ passed\b/.test(line) && !/\b\d+ failed\b/.test(line);
+}
 const GRADER_UNKNOWN = /^\s*(→|AssertionError:)\s*UNKNOWN \(/m;
 
 export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', runId = '') {
@@ -166,6 +175,9 @@ export function gradeAttempt(attempt: Attempt, label?: Label, batchDir = '.', ru
   if (LABEL_ONLY_EVALS.has(attempt.eval))
     return outcome('unknown', `saved validation status ${result?.status ?? 'missing'}; outcome needs a manual label`);
   if (!result) return outcome('unknown', attempt.error ? `runner error: ${attempt.error}` : 'no result.json');
+  // A backstop to the grader patch: a pass must come with vitest's own summary showing no failures.
+  if (result.status === 'passed' && !(testsRan && vitestPassed(readFileSync(join(runDir, 'outputs/eval.txt'), 'utf8'))))
+    return outcome('unknown', 'saved as passed but outputs/eval.txt has no vitest summary with every test passing');
   if (result.status === 'passed') return outcome('pass', 'typecheck and core checks passed');
   if (result.error?.includes('timed out')) return outcome('agent', result.error);
   // A grader may declare it could not observe the attempt ("UNKNOWN (" in an assertion message, not a code frame).
@@ -252,7 +264,11 @@ export function exportRun(runDir: string, reportPath = join(runDir, 'report.json
       seconds: stat(known(list.map((attempt) => attempt.seconds))),
       // Experiments named *-skills install the Sanity skills (experiments/lib/openrouter.ts).
       skillsInstalled: experiment.endsWith('-skills'),
-      skillUsed: list.filter((attempt) => attempt.skillUsed).length,
+      // Counted over attempts whose transcript this exporter can read; null when there are none.
+      skillUsed: list.some((attempt) => attempt.skillUsed !== null)
+        ? list.filter((attempt) => attempt.skillUsed).length
+        : null,
+      skillUsedKnown: list.filter((attempt) => attempt.skillUsed !== null).length,
       filesCaptured: stat(known(list.map((attempt) => attempt.filesCaptured))),
       retriedAttempts: list.filter((attempt) => attempt.invocations > 1).length,
     };
@@ -300,9 +316,12 @@ if (import.meta.main) {
       '$ median / total': `${format(row.costUsd.median, 3)} / ${format(row.costUsd.total, 2)}`,
       'final-transcript tokens incl. cache median / total': `${format(row.tokens.median)} / ${format(row.tokens.total)}`,
       's median / total': `${format(row.seconds.median)} / ${format(row.seconds.total)}`,
-      'skill used / installed': row.skillsInstalled
-        ? `${row.skillUsed}/${row.completed}`
-        : `${row.skillUsed} (not installed)`,
+      'skill used / installed':
+        row.skillUsed === null
+          ? 'unknown'
+          : row.skillsInstalled
+            ? `${row.skillUsed}/${row.skillUsedKnown}`
+            : `${row.skillUsed} (not installed)`,
       'captured files median': format(row.filesCaptured.median),
       'silently retried': row.retriedAttempts,
     })),
@@ -311,6 +330,6 @@ if (import.meta.main) {
     for (const failure of row.infraFailures) console.log(`infra: ${row.group} run ${failure.run}: ${failure.reason}`);
   const spend = report.openRouterUsageDeltaUsd === null ? 'unknown' : `$${report.openRouterUsageDeltaUsd.toFixed(2)}`;
   console.log(
-    `OpenRouter key usage delta (observed) ${spend}. $ per attempt is OpenCode's estimate. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.incomplete ? 'INCOMPLETE: no endedAt, so planned attempts may be missing. NOT VALID.' : report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
+    `OpenRouter key usage delta (observed) ${spend}. $ per attempt is the harness's own estimate where it reports one. Skipped ${report.skipped}${report.stopped ? ` (stopped: ${report.stopped})` : ''}. ${report.incomplete ? 'INCOMPLETE: no endedAt, so planned attempts may be missing. NOT VALID.' : report.valid ? 'Valid.' : 'NOT VALID: unknown outcomes remain.'}`,
   );
 }

@@ -54,7 +54,12 @@ test('the singletons fixture keeps dependency, Vite and PostCSS changes from the
   expect(blocked.filter((path) => !isProtected(path))).toEqual([]);
 });
 
-async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<string, string> = {}) {
+async function run(
+  mode: string,
+  extraArgs: string[] = [],
+  extraEnv: Record<string, string> = {},
+  experiments = ['experiments/claude-haiku-5.5.ts'],
+) {
   const resultsRoot = join(root, 'results');
   mkdirSync(resultsRoot, { recursive: true });
   const existingResults = new Set(readdirSync(resultsRoot));
@@ -81,6 +86,8 @@ async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<stri
         return ok({ usage: 'lots' });
       case 'cap':
         return ok({ usage: 11, usage_monthly: 11 });
+      case 'falling':
+        return ok({ usage: 9, usage_monthly: 9 });
       case 'attempt':
         return ok({ usage: 10.5, usage_monthly: 10.5 });
       case 'month':
@@ -104,7 +111,7 @@ async function run(mode: string, extraArgs: string[] = [], extraEnv: Record<stri
       '--cap',
       '1',
       ...extraArgs,
-      'experiments/claude-haiku-5.5.ts',
+      ...experiments,
     ]);
     const raw = readFileSync(join(resultsDir, 'manifest.json'), 'utf8');
     const projectFiles = ['before', 'after'].map((when) => {
@@ -152,6 +159,13 @@ test('missing or non-numeric usage stops the batch', async () => {
 
 test('the batch cap stops new attempts', async () => {
   expectStoppedBeforeAnyAttempt(await run('cap'), /batch spend \$1\.00 reached the \$1 cap/);
+});
+
+test('a spend total lower than the last check stops new attempts', async () => {
+  expectStoppedBeforeAnyAttempt(
+    await run('falling'),
+    /reported \$9\.00 spent, less than the \$10\.00 it reported before/,
+  );
 });
 
 test('the per-attempt stop stops new attempts when spend between checks is too high', async () => {
@@ -239,4 +253,36 @@ test('without a Sanity token, no projects are listed', async () => {
     throw new Error(`run failed: ${'error' in result ? result.error : ''}`);
   expect(result.manifest.stagingProjectsNewlyObserved).toBeNull();
   expect(result.projectFiles).toEqual([null, null]);
+});
+
+test.each([
+  ['Claude Code direct', "{ ...nativeExperiment({ harness: 'claude-code', model: 'x' }), agent: 'claude-code' }"],
+  ['Codex direct', "{ ...nativeExperiment({ harness: 'codex', model: 'x' }), agent: 'codex' }"],
+  [
+    'OpenCode on an AI Gateway model',
+    "{ ...nativeExperiment({ harness: 'codex', model: 'x' }), agent: 'vercel-ai-gateway/opencode', model: 'anthropic/x' }",
+  ],
+])('%s is refused before any attempt: it would spend outside the OpenRouter key', async (name, body) => {
+  const experimentPath = join(dir, `off-lane-${name.replace(/\W+/g, '-')}.ts`);
+  writeFileSync(
+    experimentPath,
+    `import { nativeExperiment } from '${join(root, 'experiments/lib/native.ts')}';\nexport default ${body};\n`,
+  );
+  const result = await run('cap', [], {}, [experimentPath]);
+  expect('error' in result ? result.error : 'ran').toMatch(/Not an OpenRouter lane/);
+});
+
+test.each(['experiments/claude-haiku-5.5-claude-code.ts', 'experiments/gpt-5.6-terra-codex.ts'])(
+  '%s runs on the OpenRouter key and its spend checks',
+  async (experiment) => {
+    expectStoppedBeforeAnyAttempt(await run('cap', [], {}, [experiment]), /batch spend \$1\.00 reached the \$1 cap/);
+  },
+);
+
+test('the AI Gateway Claude Code and Codex adapters no longer exist, so no experiment can bill AI Gateway through them', async () => {
+  const { listAgents } = await import('@vercel/agent-eval');
+  const agents = listAgents();
+  expect(agents).toEqual(expect.arrayContaining(['openrouter/claude-code', 'openrouter/codex']));
+  expect(agents).not.toContain('vercel-ai-gateway/claude-code');
+  expect(agents).not.toContain('vercel-ai-gateway/codex');
 });

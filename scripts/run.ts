@@ -9,6 +9,8 @@
  * Vercel AI Gateway key for its failure classifier, and deletes final non-model
  * failures. This script keeps every final result to label later, limits how
  * many attempts run at once, and checks OpenRouter spend before each starts.
+ * Every lane bills the one OpenRouter key: OpenCode with an openrouter/ model, and Claude Code and Codex
+ * through our patched adapters (experiments/lib/native.ts).
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -227,7 +229,10 @@ export async function main(argv: string[]): Promise<string> {
       const currentUsage = await keyUsage();
       attempt.openRouterUsageBefore = currentUsage.total;
       const spent = currentUsage.total - start.total;
-      if (currentUsage.month >= MONTHLY_STOP_USD) {
+      if (currentUsage.total < previousUsage) {
+        // Spend never goes down; a lower figure means the check can't be trusted.
+        manifest.stopped = `OpenRouter reported $${currentUsage.total.toFixed(2)} spent, less than the $${previousUsage.toFixed(2)} it reported before: spend can't be trusted, so no more attempts were started`;
+      } else if (currentUsage.month >= MONTHLY_STOP_USD) {
         manifest.stopped = `monthly spend $${currentUsage.month.toFixed(2)} reached David's $${MONTHLY_STOP_USD} stop: tell him before running more`;
       } else if (spent >= capUsd) {
         manifest.stopped = `batch spend $${spent.toFixed(2)} reached the $${capUsd} cap`;
@@ -255,6 +260,16 @@ export async function main(argv: string[]): Promise<string> {
     });
     loaded.push({ config, experiment, model });
   }
+  // Lanes that bill the OpenRouter key this script checks. Anything else (agent-eval's AI Gateway or
+  // direct-provider adapters) would spend money this script can't see, so it is refused before any attempt.
+  const isOpenRouterLane = (agent: string, model: string) =>
+    ['openrouter/claude-code', 'openrouter/codex'].includes(agent) ||
+    (agent === 'vercel-ai-gateway/opencode' && model.startsWith('openrouter/'));
+  const offLane = loaded.filter(({ config, model }) => !isOpenRouterLane(config.agent, model));
+  if (offLane.length)
+    throw new Error(
+      `Not an OpenRouter lane: ${offLane.map((entry) => entry.experiment).join(', ')}. Use Claude Code or Codex from experiments/lib/native.ts, or OpenCode with an openrouter/ model.`,
+    );
   const fixtureFor = (evalName: string) => {
     const fixture = fixtures.find((candidate) => candidate.name === evalName);
     if (!fixture) throw new Error(`Unknown eval: ${evalName}`);

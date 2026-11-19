@@ -1,3 +1,198 @@
+diff --git a/dist/lib/agents/claude-code/agent.js b/dist/lib/agents/claude-code/agent.js
+index 58be30ad48f970e10899c67cc1f7cf779215f8c6..1fa18f187166facc3e21af36a2b55c48baffe991 100644
+--- a/dist/lib/agents/claude-code/agent.js
++++ b/dist/lib/agents/claude-code/agent.js
+@@ -6,7 +6,7 @@
+  * keeps the public Agent interface identical so the registry / runner are untouched.
+  */
+ import { fileURLToPath } from 'node:url';
+-import { AI_GATEWAY, ANTHROPIC_DIRECT } from '../shared.js';
++import { OPENROUTER, ANTHROPIC_DIRECT } from '../shared.js';
+ import { runWithDefinition } from '../plugin/orchestrator.js';
+ /**
+  * Build the Claude Code plugin definition.
+@@ -20,8 +20,9 @@ import { runWithDefinition } from '../plugin/orchestrator.js';
+  */
+ export function createClaudeCodeDefinition({ useVercelAiGateway }) {
+     return {
+-        name: useVercelAiGateway ? 'vercel-ai-gateway/claude-code' : 'claude-code',
+-        displayName: useVercelAiGateway ? 'Claude Code (Vercel AI Gateway)' : 'Claude Code',
++        // Patched (sanity evals): the gateway mode talks to OpenRouter.
++        name: useVercelAiGateway ? 'openrouter/claude-code' : 'claude-code',
++        displayName: useVercelAiGateway ? 'Claude Code (OpenRouter)' : 'Claude Code',
+         defaultModel: 'opus',
+         o11yAgentName: 'claude-code',
+         bundledSkillsControl: 'configurable',
+@@ -30,7 +31,7 @@ export function createClaudeCodeDefinition({ useVercelAiGateway }) {
+         runnerPath: fileURLToPath(new URL('./run.mjs', import.meta.url)),
+         getApiKeyEnvVar() {
+             if (useVercelAiGateway)
+-                return AI_GATEWAY.apiKeyEnvVar;
++                return OPENROUTER.apiKeyEnvVar;
+             if (process.env.CLAUDE_CODE_OAUTH_TOKEN)
+                 return 'CLAUDE_CODE_OAUTH_TOKEN';
+             return ANTHROPIC_DIRECT.apiKeyEnvVar;
+@@ -54,9 +55,21 @@ export function createClaudeCodeDefinition({ useVercelAiGateway }) {
+         authEnv(options) {
+             if (useVercelAiGateway) {
+                 return {
+-                    ANTHROPIC_BASE_URL: AI_GATEWAY.baseUrl,
++                    ANTHROPIC_BASE_URL: OPENROUTER.anthropicBaseUrl,
+                     ANTHROPIC_AUTH_TOKEN: options.apiKey,
+                     ANTHROPIC_API_KEY: '',
++                    // Patched (sanity evals): Claude Code sends titles, summaries and sub-agents to its own default
++                    // model ids. Pin every role to the model under test so OpenRouter bills only that model, and
++                    // turn off telemetry and update checks.
++                    ...(options.model ? Object.fromEntries([
++                        'ANTHROPIC_MODEL',
++                        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
++                        'ANTHROPIC_DEFAULT_SONNET_MODEL',
++                        'ANTHROPIC_DEFAULT_OPUS_MODEL',
++                        'ANTHROPIC_SMALL_FAST_MODEL',
++                        'CLAUDE_CODE_SUBAGENT_MODEL',
++                    ].map((key) => [key, options.model])) : {}),
++                    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+                 };
+             }
+             if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+diff --git a/dist/lib/agents/claude-code/run.mjs b/dist/lib/agents/claude-code/run.mjs
+index 5b356aeb5a84d84eea9b60ccb03071c3c98d589f..240a0f0b1e5735520924e9f526b9fd88948bde4d 100644
+--- a/dist/lib/agents/claude-code/run.mjs
++++ b/dist/lib/agents/claude-code/run.mjs
+@@ -20,7 +20,7 @@
+  */
+ 
+ import { spawnSync } from 'node:child_process';
+-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
++import { mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+ import { homedir } from 'node:os';
+ import { dirname, join } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+@@ -184,6 +184,8 @@ if (isMain) {
+   // unrecoverable crash before we can write).
+   let result;
+   try {
++    // Patched (sanity evals): remove this file before the agent starts, so the agent cannot read the runner.
++    unlinkSync(fileURLToPath(import.meta.url));
+     result = await runAgent(input);
+   } catch (e) {
+     result = {
+diff --git a/dist/lib/agents/codex/agent.js b/dist/lib/agents/codex/agent.js
+index 81f6cfa065870893a11b00fa16885dc2bb9449ad..2c04f2a876617c12edbd051754b62a8d51edbd40 100644
+--- a/dist/lib/agents/codex/agent.js
++++ b/dist/lib/agents/codex/agent.js
+@@ -15,7 +15,7 @@
+  * stays host-side (and exported) so the unit tests keep importing it.
+  */
+ import { fileURLToPath } from 'node:url';
+-import { AI_GATEWAY, OPENAI_DIRECT } from '../shared.js';
++import { OPENROUTER, OPENAI_DIRECT } from '../shared.js';
+ import { runWithDefinition } from '../plugin/orchestrator.js';
+ /**
+  * Parse model string with optional query parameters.
+@@ -94,13 +94,17 @@ export function generateCodexConfig(model, useVercelAiGateway, reasoningEffort,
+         // AI Gateway uses prefixed model names like "openai/gpt-5.2-codex".
+         // Native-default runs intentionally omit model and reasoning overrides.
+         const fullModel = model ? (model.includes('/') ? model : `openai/${model}`) : undefined;
+-        return `# Codex configuration for Vercel AI Gateway
+-model_provider = "vercel"
++        return `# Codex configuration for OpenRouter (patched, sanity evals)
++model_provider = "openrouter"
+ ${fullModel ? `model = "${fullModel}"\n` : ''}${model ? `model_reasoning_effort = "${reasoningEffort ?? DEFAULT_REASONING_EFFORT}"\nmodel_verbosity = "${DEFAULT_MODEL_VERBOSITY}"\n` : ''}${webSearchSetting}
+-[model_providers.vercel]
+-name = "Vercel AI Gateway"
+-base_url = "${AI_GATEWAY.openAiBaseUrl}"
+-env_key = "${AI_GATEWAY.apiKeyEnvVar}"
++# Patched (sanity evals): shell snapshots copy the environment, including the key, into ~/.codex.
++[features]
++shell_snapshot = false
++
++[model_providers.openrouter]
++name = "OpenRouter"
++base_url = "${OPENROUTER.openAiBaseUrl}"
++env_key = "${OPENROUTER.apiKeyEnvVar}"
+ wire_api = "responses"
+ ${webResearch ? 'supports_standalone_web_search = true\n' : ''}${bundledSkillsSection}`;
+     }
+@@ -124,8 +128,9 @@ ${directModel ? `model = "${directModel}"\n` : ''}${model ? `model_reasoning_eff
+  */
+ export function createCodexDefinition({ useVercelAiGateway }) {
+     return {
+-        name: useVercelAiGateway ? 'vercel-ai-gateway/codex' : 'codex',
+-        displayName: useVercelAiGateway ? 'OpenAI Codex (Vercel AI Gateway)' : 'OpenAI Codex',
++        // Patched (sanity evals): the gateway mode talks to OpenRouter.
++        name: useVercelAiGateway ? 'openrouter/codex' : 'codex',
++        displayName: useVercelAiGateway ? 'OpenAI Codex (OpenRouter)' : 'OpenAI Codex',
+         defaultModel: 'openai/gpt-5.2-codex',
+         o11yAgentName: 'codex',
+         bundledSkillsControl: 'configurable',
+@@ -133,7 +138,7 @@ export function createCodexDefinition({ useVercelAiGateway }) {
+         // the build copies run.mjs alongside the compiled agent.js).
+         runnerPath: fileURLToPath(new URL('./run.mjs', import.meta.url)),
+         getApiKeyEnvVar() {
+-            return useVercelAiGateway ? AI_GATEWAY.apiKeyEnvVar : OPENAI_DIRECT.apiKeyEnvVar;
++            return useVercelAiGateway ? OPENROUTER.apiKeyEnvVar : OPENAI_DIRECT.apiKeyEnvVar;
+         },
+         install(_options) {
+             // Project deps (retried once), then the Codex CLI globally. Error wording is
+@@ -141,7 +146,7 @@ export function createCodexDefinition({ useVercelAiGateway }) {
+             // 'Codex CLI install failed: <stderr>'.
+             return [
+                 { kind: 'command', cmd: 'npm', args: ['install'], retryOnce: true, errorPrefix: 'npm install failed', errorBody: 'last10', scope: 'project' },
+-                { kind: 'command', cmd: 'npm', args: ['install', '-g', '@openai/codex'], errorPrefix: 'Codex CLI install failed', errorBody: 'stderr' },
++                { kind: 'command', cmd: 'npm', args: ['install', '-g', '@openai/codex@0.167.0'], errorPrefix: 'Codex CLI install failed', errorBody: 'stderr' },
+             ];
+         },
+         // Prints e.g. `codex-cli 0.144.0`; recorded as provenance.agentCliVersion.
+@@ -169,7 +174,7 @@ export function createCodexDefinition({ useVercelAiGateway }) {
+             // env_key the generated TOML expects: AI_GATEWAY_API_KEY for the "vercel"
+             // provider, OPENAI_API_KEY for the built-in "openai" provider. The runner
+             // also reads this same env to pipe the key into `codex login`.
+-            const envVar = useVercelAiGateway ? AI_GATEWAY.apiKeyEnvVar : OPENAI_DIRECT.apiKeyEnvVar;
++            const envVar = useVercelAiGateway ? OPENROUTER.apiKeyEnvVar : OPENAI_DIRECT.apiKeyEnvVar;
+             return { [envVar]: options.apiKey };
+         },
+         /**
+diff --git a/dist/lib/agents/codex/run.mjs b/dist/lib/agents/codex/run.mjs
+index 4744950bd1c360b95c667e61cf59c968eb1f5447..5ca109b154f815ae40645fccf1509bea8941c10b 100644
+--- a/dist/lib/agents/codex/run.mjs
++++ b/dist/lib/agents/codex/run.mjs
+@@ -23,7 +23,7 @@
+ 
+ import { spawnSync } from 'node:child_process';
+ import { randomBytes } from 'node:crypto';
+-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
++import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+ import { homedir } from 'node:os';
+ import { dirname, join } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+@@ -478,12 +478,15 @@ export async function runAgent(input) {
+   // The login key: gateway runs use AI_GATEWAY_API_KEY; direct OpenAI uses
+   // OPENAI_API_KEY. Reading both (gateway first) keeps the runner agnostic to the
+   // mode while never carrying the secret in the argv JSON.
+-  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY || '';
++  const apiKey = process.env.OPENROUTER_API_KEY || process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY || '';
+ 
+   // Step 1: codex login --with-api-key (key piped on stdin). The built-in openai
+   // provider requires bearer auth; the gateway provider reads env_key but login is
+   // harmless/consistent there too. This is the left side of the old `&&`.
+-  const login = spawnSync('codex', buildCodexLoginArgs(), {
++  // Patched (sanity evals): on the OpenRouter lane Codex reads the key from env_key, so skip `codex login`,
++  // which would save the key in ~/.codex/auth.json where the agent can read it.
++  const skipLogin = Boolean(process.env.OPENROUTER_API_KEY);
++  const login = skipLogin ? { stdout: '', stderr: '', status: 0 } : spawnSync('codex', buildCodexLoginArgs(), {
+     cwd: input.cwd,
+     env: process.env,
+     input: apiKey,
+@@ -606,6 +609,8 @@ if (isMain) {
+   // unrecoverable crash before we can write).
+   let result;
+   try {
++    // Patched (sanity evals): remove this file before the agent starts, so the agent cannot read the runner.
++    unlinkSync(fileURLToPath(import.meta.url));
+     result = await runAgent(input);
+   } catch (e) {
+     result = {
 diff --git a/dist/lib/agents/opencode/run.mjs b/dist/lib/agents/opencode/run.mjs
 index d55115dd54de90f4cbf23b4ad842103676149bcd..7533efc2cda81891f504527f0bd97afc4c58268c 100644
 --- a/dist/lib/agents/opencode/run.mjs
@@ -20,3 +215,212 @@ index d55115dd54de90f4cbf23b4ad842103676149bcd..7533efc2cda81891f504527f0bd97afc
      result = await runAgent(input);
    } catch (e) {
      result = {
+diff --git a/dist/lib/agents/plugin/orchestrator.js b/dist/lib/agents/plugin/orchestrator.js
+index 9b58fd349c7074463232b4b7c5e21774af0bae91..f1a6d65ea17874432299413498b4e07fc5e77137 100644
+--- a/dist/lib/agents/plugin/orchestrator.js
++++ b/dist/lib/agents/plugin/orchestrator.js
+@@ -136,6 +136,117 @@ export function assertAgentEnv(def, options) {
+  * Run install steps, reproducing the old per-step error wording.
+  * Throws on final failure so the caller's catch turns it into an error result.
+  */
++/** Patched (sanity evals): the grader's npm install runs no lifecycle scripts, which the agent can add to package.json. */
++export function graderInstallStep(step) {
++    return step.kind === 'command' && step.cmd === 'npm' && step.args?.[0] === 'install'
++        ? { ...step, args: [...step.args, '--ignore-scripts'] }
++        : step;
++}
++/** Serialize a self-contained function without allowing Vite's injected helpers to leak into the sandbox program. */
++export function serializedFunctionCommand(fn, args = []) {
++    const source = fn.toString();
++    if (/__vite_ssr|__vi_/.test(source)) {
++        throw new Error('unsafe transformed helper source');
++    }
++    const encodedSource = Buffer.from(source).toString('base64');
++    const encodedArguments = Buffer.from(JSON.stringify(args)).toString('base64');
++    const launcher = "const f=eval('('+Buffer.from(process.argv[1],'base64')+')');" +
++        "f(...JSON.parse(Buffer.from(process.argv[2],'base64')))";
++    return `node -e "${launcher}" ${encodedSource} ${encodedArguments}`;
++}
++/** Read the fixture's workspace package names. This function is serialized and run inside the sandbox. */
++export function readShippedWorkspaces() {
++    const fileSystem = require('fs');
++    const packageJson = JSON.parse(fileSystem.readFileSync('package.json', 'utf8'));
++    const workspaceDirectories = [].concat(packageJson.workspaces || []);
++    const shipped = workspaceDirectories
++        .filter((directory) => fileSystem.existsSync(`${directory}/package.json`))
++        .map((directory) => {
++        const workspacePackage = JSON.parse(fileSystem.readFileSync(`${directory}/package.json`, 'utf8'));
++        return [directory, workspacePackage.name];
++    });
++    console.log(JSON.stringify(shipped));
++}
++/** Patched (sanity evals): the npm workspace packages the fixture ships, as [folder, package name], read before the agent's
++ *  changes are replayed. Only these may be installed as links. */
++export async function shippedWorkspaces(sandbox) {
++    const result = await sandbox.runShell(serializedFunctionCommand(readShippedWorkspaces));
++    if (result.exitCode !== 0) {
++        throw new Error(`Grader refused: could not read the fixture's workspaces:\n${(result.stdout + result.stderr).trim().slice(0, 500)}`);
++    }
++    return JSON.parse(result.stdout.trim() || '[]');
++}
++/** Validate installed package-lock entries. This function is serialized and run inside the sandbox. */
++export function validateRegistryPackages(shippedWorkspacePackages) {
++    const lockfile = require('./node_modules/.package-lock.json');
++    const registryUrl = 'https://registry.npmjs.org/';
++    const packages = lockfile.packages || {};
++    const installedName = (packagePath) => packagePath.slice(packagePath.lastIndexOf('node_modules/') + 13);
++    const tarballUrl = (packageName, entry) => {
++        const tarballName = packageName.split('/').pop();
++        return `${registryUrl}${packageName}/-/${tarballName}-${entry.version}.tgz`;
++    };
++    const hasExactRegistryTarball = (packagePath, entry) => {
++        const packageName = entry.name || installedName(packagePath);
++        return typeof entry.resolved === 'string' && entry.resolved === tarballUrl(packageName, entry);
++    };
++    const declaredAliases = new Set();
++    for (const [packagePath, entry] of Object.entries(packages)) {
++        if (!packagePath || !hasExactRegistryTarball(packagePath, entry) || entry.name)
++            continue;
++        const dependencies = { ...entry.dependencies, ...entry.optionalDependencies, ...entry.peerDependencies };
++        for (const [dependencyName, dependencySpec] of Object.entries(dependencies)) {
++            if (String(dependencySpec).startsWith('npm:')) {
++                const targetName = String(dependencySpec).slice(4).replace(/(.)@.*$/, '$1');
++                declaredAliases.add(`${dependencyName} ${targetName}`);
++            }
++        }
++    }
++    const isRegistryPackage = (packagePath, entry) => hasExactRegistryTarball(packagePath, entry) &&
++        (!entry.name || entry.name === installedName(packagePath) || declaredAliases.has(`${installedName(packagePath)} ${entry.name}`));
++    const isRegistryPackageOrBundle = (packagePath, entry) => {
++        if (!entry)
++            return false;
++        if (!entry.inBundle)
++            return isRegistryPackage(packagePath, entry);
++        const parentIndex = packagePath.lastIndexOf('/node_modules/');
++        return parentIndex > 0 && isRegistryPackageOrBundle(packagePath.slice(0, parentIndex), packages[packagePath.slice(0, parentIndex)]);
++    };
++    const isShippedWorkspace = (packagePath, entry) => shippedWorkspacePackages.some(([directory, packageName]) => (packagePath === directory &&
++        (entry.name === packageName || (entry.name === undefined && directory.split('/').pop() === packageName))) ||
++        (packagePath === `node_modules/${packageName}` && entry.link === true && entry.resolved === directory));
++    const invalidPackages = Object.entries(packages).filter(([packagePath, entry]) => packagePath &&
++        !isRegistryPackageOrBundle(packagePath, entry) && !isShippedWorkspace(packagePath, entry));
++    if (invalidPackages.length) {
++        console.log(invalidPackages
++            .slice(0, 5)
++            .map(([packagePath, entry]) => `${packagePath} ${entry.resolved || 'no resolved'}`)
++            .join('\n'));
++        process.exit(1);
++    }
++}
++/** Patched (sanity evals): grade only against packages from the npm registry (or the fixture's own workspace links), so
++ *  a file:, link: or git dependency or override, or a renamed workspace, can't replace vitest or anything it loads.
++ *  Each tarball must match its entry's name and version, and an npm: alias passes only when a registry package declares
++ *  it, so an alias the agent adds can't put another package where vitest looks. A bundled package passes only inside a
++ *  registry package, so the project can't bundle its own vitest.
++ *  Throws, so the attempt is recorded as an error, not a result. */
++export async function assertRegistryOnly(sandbox, workspaces) {
++    const check = await sandbox.runShell(serializedFunctionCommand(validateRegistryPackages, [workspaces]));
++    if (check.exitCode !== 0) {
++        throw new Error(`Grader refused: installed packages not from the npm registry:\n${(check.stdout + check.stderr).trim().slice(0, 1000)}`);
++    }
++}
++/** Patched (sanity evals): every fixture ships vitest. If the project install leaves none, the agent removed it, and
++ *  agent-eval's fallback `npm install vitest` would run after assertRegistryOnly, honouring the agent's package.json
++ *  overrides and .npmrc. Refuse instead; throws, so the attempt is recorded as an error, not a result. */
++export async function assertVitestInstalled(sandbox) {
++    const present = await sandbox.runShell('test -e node_modules/vitest/package.json');
++    if (present.exitCode !== 0) {
++        throw new Error('Grader refused: the project install has no vitest (the agent removed it), ' +
++            'so the grader would install one using the agent\'s package.json and .npmrc');
++    }
++}
+ async function runInstallSteps(sandbox, steps) {
+     for (const step of steps) {
+         const exec = () => step.kind === 'shell'
+@@ -226,7 +337,8 @@ async function validate(sandbox, testFiles, transcript, def, options, judgeRunti
+     // The JUDGE's auth env is set on the eval process so EVAL.ts judge matchers can
+     // re-invoke the agent in-sandbox (the vitest process inherits it to children).
+     // By default the judge is the codegen agent+model; options.judge pins a fixed one.
+-    const validationEnv = { ...judgeRuntime.authEnv, ...workspaceEnv };
++    // Patched (sanity evals): the model key reaches the grader only when an EVAL file can call the judge.
++    const validationEnv = { ...(fixtureUsesJudge(testFiles) ? judgeRuntime.authEnv : {}), ...workspaceEnv };
+     if (options.validation !== 'none') {
+         await sandbox.uploadFiles(testFiles);
+         await createVitestConfig(sandbox);
+@@ -533,11 +645,14 @@ async function runOnce(def, fixturePath, options, provenance) {
+             await options.setup(verifier);
+         }
+         const verifierWorkspace = await prepareNeutralWorkspace(verifier);
++        const workspaces = await shippedWorkspaces(verifier);
+         //   e. Replay the agent's changes, minus protected paths.
+         await applyAgentChanges(verifier, changes, isProtected);
+         //   f. Fresh project dependencies, and the judge's CLI only when the eval
+         //      can call the judge (a self-grading judge also re-runs run.mjs).
+-        await runInstallSteps(verifier, projectInstallSteps(def.install(options)));
++        await runInstallSteps(verifier, projectInstallSteps(def.install(options)).map(graderInstallStep));
++        await assertRegistryOnly(verifier, workspaces);
++        await assertVitestInstalled(verifier);
+         if (options.validation !== 'none' && fixtureUsesJudge(allFiles)) {
+             const { judgeDef, judgeOptions } = judgeRuntime;
+             await runInstallSteps(verifier, agentInstallSteps(judgeDef.install(judgeOptions)));
+diff --git a/dist/lib/agents/shared.js b/dist/lib/agents/shared.js
+index 213be2037fe23ae9fc9816d9da9ec9230f739cfc..e5be7b6357178196cfdd2a7f402071a9994fa97c 100644
+--- a/dist/lib/agents/shared.js
++++ b/dist/lib/agents/shared.js
+@@ -97,6 +97,7 @@ export async function ensureValidationRunner(sandbox) {
+         '--no-package-lock',
+         '--no-audit',
+         '--no-fund',
++        '--ignore-scripts',
+         `vitest@${FALLBACK_VITEST_VERSION}`,
+     ]);
+ }
+@@ -118,7 +119,9 @@ env) {
+         // The agent may have removed vitest from the project; put it back first.
+         await ensureValidationRunner(sandbox);
+         // Always run vitest for the eval file (explicitly specify the file)
+-        const testResult = await sandbox.runCommand('npx', ['vitest', 'run', evalFile], env ? { env } : undefined);
++        // Patched (sanity evals): run the installed vitest by path. `npx vitest` prefers a "bin" named vitest in the
++        // project's own package.json and applies .npmrc node-options, and the agent writes both.
++        const testResult = await sandbox.runCommand('node', ['node_modules/vitest/vitest.mjs', 'run', evalFile], env ? { env } : undefined);
+         results.test = {
+             success: testResult.exitCode === 0,
+             output: testResult.stdout + testResult.stderr,
+@@ -267,6 +270,8 @@ export default defineConfig({
+     hookTimeout: 900000,
+     setupFiles: ['${helperPath}'],
+   },
++  // Patched (sanity evals): an inline PostCSS config stops vitest loading one the agent wrote, which could exit 0.
++  css: { postcss: {} },
+   resolve: {
+     alias: { '@vercel/agent-eval/eval': '${helperPath}' },
+   },
+@@ -303,6 +308,15 @@ export async function injectTranscriptContext(sandbox, rawTranscript, agentName,
+ /**
+  * AI Gateway configuration.
+  */
++/**
++ * Patched (sanity evals): OpenRouter, which our Claude Code and Codex lanes use instead of AI Gateway.
++ * Claude Code speaks the Anthropic Messages API at /api; Codex the Responses API at /api/v1.
++ */
++export const OPENROUTER = {
++    anthropicBaseUrl: 'https://openrouter.ai/api',
++    openAiBaseUrl: 'https://openrouter.ai/api/v1',
++    apiKeyEnvVar: 'OPENROUTER_API_KEY',
++};
+ export const AI_GATEWAY = {
+     baseUrl: 'https://ai-gateway.vercel.sh',
+     openAiBaseUrl: 'https://ai-gateway.vercel.sh/v1',
+diff --git a/dist/lib/agents/verifier.js b/dist/lib/agents/verifier.js
+index 7bc628eda02dbc443afd5fa14c837bfa3d9afbb6..f0208d6934e90602c224a39c0ff0178b1d6588cb 100644
+--- a/dist/lib/agents/verifier.js
++++ b/dist/lib/agents/verifier.js
+@@ -35,6 +35,8 @@ export const VERIFIER_PROTECTED_PATHS = [
+     '**/vitest.workspace.*',
+     `${TRANSCRIPT_CONTEXT_DIR}/**`,
+     '**/node_modules/**',
++    // Patched (sanity evals): npm records registry.npmjs.org even when an .npmrc registry sent the downloads elsewhere.
++    '**/.npmrc',
+ ];
+ /**
+  * True when a path matches any of the globs, or isn't a canonical workspace
