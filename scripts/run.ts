@@ -74,6 +74,9 @@ const FUNCTION = { copyFiles: 'changed' as const };
 const MIGRATION = { ...FUNCTION, protectedPaths: ['tsconfig.json'] };
 // The upgrade task changes package.json on purpose, so only tsconfig.json is protected (the grader typechecks with it).
 const UPGRADE = MIGRATION;
+// The schema task needs no new dependencies. Protecting them stops a "file:" dependency from replacing the grader's
+// own packages in the verifier's fresh install; its grader also typechecks with the shipped tsconfig.
+const SCHEMA = { ...FUNCTION, protectedPaths: ['tsconfig.json', 'package.json', 'npm-shrinkwrap.json', '.npmrc'] };
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
@@ -81,6 +84,7 @@ export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyF
   'sanity-blueprints': FUNCTION,
   'sanity-migration': MIGRATION,
   'sanity-studio-upgrade': UPGRADE,
+  'sanity-schema': SCHEMA,
 };
 
 export async function main(argv: string[]): Promise<string> {
