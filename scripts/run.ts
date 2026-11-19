@@ -88,6 +88,8 @@ const WEBHOOK = {
 const APPSDK = { ...FUNCTION, protectedPaths: ['!src/PostList.tsx'] };
 // The GROQ cursor task grades only src/pagination.ts the same way; every other change is reported as tampering.
 const GROQCURSOR = { ...FUNCTION, protectedPaths: ['!src/pagination.ts'] };
+// The Portable Text task grades only the Studio config and schema types; every other change is reported as tampering.
+const PORTABLETEXT = { ...FUNCTION, protectedPaths: ['!{sanity.config.ts,schemaTypes/**}'] };
 
 /** Per-eval verifier replay and evidence-capture options. */
 export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyFiles' | 'protectedPaths'>> = {
@@ -100,6 +102,7 @@ export const TASK_OPTIONS: Record<string, Pick<Partial<ExperimentConfig>, 'copyF
   'sanity-webhook': WEBHOOK,
   'sanity-appsdk-read': APPSDK,
   'sanity-groq-cursor': GROQCURSOR,
+  'sanity-portable-text': PORTABLETEXT,
 };
 
 export async function main(argv: string[]): Promise<string> {
