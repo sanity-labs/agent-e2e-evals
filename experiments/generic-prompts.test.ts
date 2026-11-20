@@ -29,7 +29,7 @@ test.each(GENERIC_TASKS)(
 test('other prompts pass through unchanged, and an edited frozen prompt is not swapped', () => {
   const typegen = read('../evals/sanity-typegen/PROMPT.md');
   expect(genericPrompt(typegen)).toBe(typegen);
-  const edited = `${read('../evals/sanity-webhook/PROMPT.md')} `;
+  const edited = `${read('../evals/sanity-draft-preview/PROMPT.md')} `;
   expect(genericPrompt(edited)).toBe(edited);
 });
 
