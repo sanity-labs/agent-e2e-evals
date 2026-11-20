@@ -1,3 +1,0 @@
-Editors want to preview unpublished changes on this blog before they publish. Sanity's Presentation tool will open `/api/draft-mode/enable` with its usual preview parameters, so add that route, and make a GET to `/api/draft-mode/disable` turn preview off again. While preview is on, the posts list and each post page show the latest drafts, including posts that have never been published. Everyone else sees only published content, still cached as it is now. A read token is in the `SANITY_API_READ_TOKEN` environment variable, and it must never reach the browser. Visual editing overlays are out of scope, and we can't change dependencies right now.
-
-`scripts/sample-api.mjs` is test set-up (a local stand-in for Sanity's API); leave it alone.
