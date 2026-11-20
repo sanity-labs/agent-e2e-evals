@@ -1,7 +1,7 @@
-Editors need three fixed documents in this Studio. The website reads them by these exact IDs.
+Editors need three fixed documents in this Studio, and the website looks them up by these exact IDs.
 
-- Site settings: one `siteSettings` document with the ID `siteSettings`. Editors open it straight from the sidebar. They must not be able to create another site settings document or duplicate this one.
-- Campaigns: two fixed `campaign` documents, "Spring campaign" (ID `springCampaign`) and "Summer campaign" (ID `summerCampaign`). Editors open each one straight from the sidebar. When an editor opens one for the first time, its `season` field already says `spring` or `summer`. Editors must still be able to create and browse ordinary one-off campaigns, as they do now.
-- Keep the rest of the sidebar working: editors still find and create posts, authors and pages.
+- Site settings: one `siteSettings` document with the ID `siteSettings`. Editors open it straight from the sidebar, and there is only ever one: they can't create another or duplicate it.
+- Two seasonal campaigns, both `campaign` documents: "Spring campaign" (ID `springCampaign`) and "Summer campaign" (ID `summerCampaign`), each opened straight from the sidebar. The first time an editor opens one, its `season` field already says `spring` or `summer`. Editors still create and browse their other, one-off campaigns as they do today.
+- Everything else in the sidebar keeps working: editors still find and create posts, authors and pages.
 
-Example content is in `data/sample.ndjson`. Make sure `tsc --noEmit` passes and `sanity schema extract` works. Everything you need is installed: don't add or change dependencies, and don't change `tsconfig.json`. You don't need to deploy, run the Studio or connect to a dataset.
+There's example content in `data/sample.ndjson`. We can't add or upgrade dependencies or change `tsconfig.json` right now, and there's no dataset to connect to or deploy for this: we just need the code ready.

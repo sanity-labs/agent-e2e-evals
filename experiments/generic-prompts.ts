@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 // way a user would, with no tooling instructions such as "make sure `tsc --noEmit` passes". The frozen prompts in
 // evals/*/PROMPT.md stay as they are, and grading is unchanged. The generic text lives outside evals/ because
 // agent-eval copies every fixture file except PROMPT.md and EVAL.ts into the agent's sandbox.
-export const GENERIC_TASKS = ['sanity-singletons', 'sanity-webhook', 'sanity-draft-preview'] as const;
+export const GENERIC_TASKS = ['sanity-webhook', 'sanity-draft-preview'] as const;
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
