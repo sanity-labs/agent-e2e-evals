@@ -1,21 +1,13 @@
-Our website needs landing pages in English and Norwegian. Add a `page` document type to this Sanity Studio, and make sure the Studio uses it. The frontend already reads these names, so keep them exactly:
+We're launching landing pages in English and Norwegian, and editors will build them in this Studio. Add a `page` document type and make it available in the Studio. Our website's code is already written against these names, so please use them exactly:
 
 - `title` (text), `slug` (a URL slug), `language` (`en` or `nb`), `showInNav` (yes/no), `navLabel` (text), and `sections`, a list of blocks. Each block is one of:
-  - `hero`, with a `heading` and an optional `image` that has `alt` text;
-  - `richText`, with a `body` of rich text;
-  - `postList`, with `posts`, a list of links to posts.
-- Every block also has an optional `visibleFrom` and `visibleUntil` (date and time), so editors can schedule it.
+  - `hero`: a `heading` and an optional `image` with `alt` text;
+  - `richText`: a `body` of rich text;
+  - `postList`: `posts`, a list of links to posts.
+- Editors can schedule any block with an optional `visibleFrom` and `visibleUntil` (date and time).
 
-Editors should get a validation error before they can publish when:
+Editors shouldn't be able to publish a page that would break the site: a page with no title, slug or language, or with no sections, or with a language other than `en` or `nb`; a page shown in the navigation without a nav label; a page with more than one hero, or a hero that isn't the first block; a hero without a heading, or with an image that has no alt text; a rich text block with no real text in it (spaces, tabs and blank lines don't count); a post list with no posts, or with the same post twice; or a block whose `visibleUntil` isn't later than its `visibleFrom`. These are fine: a page that isn't in the navigation and has no nav label, a page without a hero, a hero without an image, a blank paragraph next to one with text, the same post in two different lists, and a block with only one of the two dates.
 
-- a page has no title, no slug, no language or no sections, or its language isn't `en` or `nb`;
-- a page is shown in the navigation but has no nav label (pages that aren't in the navigation don't need one);
-- a page has more than one hero, or a hero that isn't the first block (pages without a hero are fine);
-- a hero has no heading, or has an image without alt text (a hero without an image is fine);
-- a rich text block has an empty body. A body is empty when none of its paragraphs contains any text other than whitespace (spaces, tabs and line breaks); a blank paragraph next to a paragraph with text is fine;
-- a post list has no posts, or links to the same post more than once (the same post can appear in different lists);
-- a block has both `visibleFrom` and `visibleUntil`, and `visibleUntil` isn't later in time than `visibleFrom` (either one on its own is fine).
+A page's slug is its URL within its language, so editors should at least be warned when another page in the same language already uses it, even if that page is only an unpublished draft. The same slug in English and Norwegian is fine, and a page's draft doesn't clash with its own published version. Post lists should only link to posts.
 
-Editors should also be warned, or stopped, when a page uses a slug that another page in the same language already has. The same slug in another language is fine. A slug that another page in the same language holds only in an unpublished draft counts as taken too. A page's own draft and published copies don't count as duplicates of each other. A post list may only link to posts.
-
-Example content is in `data/sample.ndjson`. Make sure `tsc --noEmit` passes and `sanity schema extract` works. Everything you need is installed: don't add or change dependencies, and don't change `tsconfig.json`. You don't need to deploy, run the Studio or connect to a dataset.
+There's example content in `data/sample.ndjson`. We can't add or upgrade dependencies or change `tsconfig.json` right now, and there's no dataset to connect to or deploy for this: we just need the code ready.

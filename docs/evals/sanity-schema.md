@@ -23,3 +23,10 @@ A test message starting `UNKNOWN` means the grader couldn't observe the attempt 
 - A custom slug query that asks for the `drafts` perspective gets UNKNOWN; only raw and published are simulated. Duplicate-slug grading compares warnings within a bound and is not a semantic uniqueness proof.
 - The date twins include an offset time equal to a UTC time. Comparing ISO strings as text fails it. The standard datetime input serializes new selections to UTC. The task also accepts offset-form values, so its date rules compare instants.
 - Attempts can take 10 to 30 minutes, so the 30-minute limit is part of what is measured.
+
+**Prompt versions.** Every attempt records the SHA-256 of the prompt it was given, so results from different versions are never pooled.
+
+- `0536d4a9…` (until November 2026): stated the rules as a validation list and told the agent to make sure `tsc --noEmit` passes and `sanity schema extract` works.
+- `e47b2228…` (current): the same names, rules and controls, asked the way a user would, with no tooling instructions ([AIGRO-5685](https://linear.app/sanity/issue/AIGRO-5685/make-eval-prompts-less-specific)). In a side-by-side on 20 November 2026 (5 attempts per prompt on Claude Code with Haiku 5.5 and Sonnet 5.5, and Codex with GPT-5.6 Terra), agents given the new prompt still ran the type check 15/15 and schema extract 14/15, and the build check passed 15/15. Full passes were 7/15 against 9/15 with the old prompt: one fewer for Haiku and Sonnet, equal for GPT. Every failure in both arms missed the same-slug-in-another-language control. The generic prompt was within one pass in every lane, which is no large gap at 5 attempts per cell, so it met the rule set before the run ([PR 82](https://github.com/sanity-labs/agent-e2e-evals/pull/82)).
+
+The slug-hint experiment (`experiments/gpt-5.6-terra-slug-hint.ts`) appends its hint to whichever prompt is current, so hint runs on the new prompt are not comparable with the November 2026 hint result, which used the old one.

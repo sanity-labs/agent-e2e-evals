@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs';
 // evals/*/PROMPT.md stay as they are, and grading is unchanged. The generic text lives outside evals/ because
 // agent-eval copies every fixture file except PROMPT.md and EVAL.ts into the agent's sandbox.
 export const GENERIC_TASKS = [
-  'sanity-schema',
   'sanity-portable-text',
   'sanity-singletons',
   'sanity-webhook',
