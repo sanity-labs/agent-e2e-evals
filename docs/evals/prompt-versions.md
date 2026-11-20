@@ -1,0 +1,10 @@
+# Prompt versions
+
+Every attempt records the SHA-256 of the prompt it was given (`promptSha256` in the batch manifest), so results from different prompt versions are never pooled.
+
+In November 2026 the prompts that told agents which checks to run ("make sure `tsc --noEmit` passes and `sanity schema extract` works", "`npm run build` must pass") were rewritten the way a user would ask, with the same names, rules and controls ([AIGRO-5685](https://linear.app/sanity/issue/AIGRO-5685/make-eval-prompts-less-specific)). Each new prompt replaced the old one only after a side-by-side on 20 November 2026: 5 attempts per prompt on Claude Code with Haiku 5.5 and Sonnet 5.5, and on Codex with GPT-5.6 Terra, same graders. The rule, fixed before the runs: replace the prompt if the new one shows no large gap on the build check or full passes in any lane. Five attempts per cell only shows large gaps, so every result below is "no clear difference", not proof the prompts are equivalent. Results are in [PR 82](https://github.com/sanity-labs/agent-e2e-evals/pull/82) and in each switching PR.
+
+| Task                 | Old prompt  | Current prompt | Side-by-side                                                                                                                                                                      |
+| -------------------- | ----------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sanity-schema        | `0536d4a9…` | `e47b2228…`    | See [the schema page](sanity-schema.md).                                                                                                                                          |
+| sanity-portable-text | `9655d7a3…` | `3245b188…`    | Full passes 14/15 old, 15/15 new (Haiku 4→5, Sonnet 5→5, GPT 5→5). Build check 15/15 both. With the new prompt every agent ran the type check; schema extract 13/15 (Sonnet 3/5). |
