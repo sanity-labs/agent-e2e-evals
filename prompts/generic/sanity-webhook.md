@@ -1,3 +1,0 @@
-Our blog's pages are cached, so when an editor publishes or changes a post, visitors keep seeing the old version. We're setting up a Sanity webhook that will POST to `/api/revalidate` with the body `{"_type":"post","slug":"<slug>"}`, signed the standard Sanity way with the secret in the `SANITY_REVALIDATE_SECRET` environment variable. When it arrives, the posts list and that post's page should show the new content. Nobody else calling that endpoint should be able to change anything. Otherwise keep the pages cached as they are now.
-
-`app/api/sample-witness` and `scripts/sample-api.mjs` are test set-up; leave them alone.
