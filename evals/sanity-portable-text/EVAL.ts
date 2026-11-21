@@ -10,8 +10,9 @@
  */
 type DynamicValue = any;
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { existsSync, lstatSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { beforeAll, expect, test } from 'vitest';
 type Obj = Record<string, any>;
 const span = (text: string, marks: string[] = [], key = 's1') => ({ _key: key, _type: 'span', text, marks });
@@ -118,10 +119,16 @@ async function checkPortableText(
 ): Promise<void> {
   type DynamicValue = any;
   const { readFileSync, writeFileSync } = process.getBuiltinModule('node:fs');
+  // Read before any project code loads; stdin is then empty. Capture result-writing primitives for the same reason.
+  const nonce = readFileSync(0, 'utf8').trim();
+  const write = writeFileSync;
+  const stringify = JSON.stringify;
+  const kill = process.kill.bind(process);
+  const pid = process.pid;
   const { evaluate, parse } = await load('groq-js');
   const done = (optionsValue: DynamicValue) => {
-    writeFileSync(outputPath, JSON.stringify(optionsValue));
-    process.exit(0);
+    write(outputPath, stringify({ ...optionsValue, nonce }));
+    kill(pid, 'SIGKILL');
   };
   const { corpus, rules, controls } = JSON.parse(readFileSync(inputPath, 'utf8'));
   let createJiti: DynamicValue, sanity: DynamicValue, evaluateDocumentInternal: DynamicValue, memberTypes: DynamicValue;
@@ -286,11 +293,108 @@ let setup = '';
 let tscError = '';
 let extractError = '';
 let result: Obj = {};
-function run(cmd: string, args: string[]) {
+
+/**
+ * Grading-integrity tripwire. Project config, schema code, and scripts run while grading and must not rewrite files
+ * that later checks trust. A ctime at or after the marker catches writes even if their contents are restored; grader
+ * outputs and tool caches are exempted. Any hit makes the attempt UNKNOWN so rewritten files can never produce a pass.
+ */
+const GRADER_WRITES = /^(node_modules|\.sanity|node_modules\/\.(vite|cache)(\/.*)?|\.sanity\/eval-schema\.json)$/;
+const CACHES = /^node_modules\/\.(vite|cache)$/;
+function tripwireStart(): bigint {
+  const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); // ctime ticks can be coarse
+  const mark = '.eval-tripwire-mark'; // same filesystem as the files it is compared with
+  pause();
+  writeFileSync(mark, '');
+  const time = lstatSync(mark, { bigint: true }).ctimeNs;
+  rmSync(mark, { force: true });
+  pause();
+  return time;
+}
+function changedSince(time: bigint, directory = '.', out: string[] = []): string[] {
+  for (const name of readdirSync(directory)) {
+    const path = directory === '.' ? name : `${directory}/${name}`;
+    // An allowed path is not reported, but a directory is still searched: node_modules itself changes, its files must not.
+    const stats = lstatSync(path, { bigint: true });
+    if (stats.ctimeNs >= time && !GRADER_WRITES.test(path)) out.push(path);
+    if (stats.isDirectory() && !stats.isSymbolicLink() && !CACHES.test(path)) changedSince(time, path, out);
+  }
+  return out;
+}
+function tripwireCheck(time: bigint): string {
+  sweep();
+  const changed = [...changedSince(time), ...toolDirsChangedSince(time)];
+  if (leftovers.length)
+    return leftovers[0]?.startsWith('no /proc')
+      ? `grading integrity: ${leftovers[0]}`
+      : `grading integrity: the verifier observed ${leftovers.length} matching process(es) still running (pid ${leftovers.slice(0, 4).join(', ')})`;
+  return changed.length
+    ? `grading integrity: the verifier observed changes to ${changed.length} file(s) while the grader ran, so its checks may have read rewritten files: ${changed.slice(0, 8).join(', ')}`
+    : '';
+}
+
+/**
+ * Grader tools run under a fixed PATH and by absolute script path, so a file added to a directory on the verifier's
+ * PATH is not run in place of node, npm, tsc, sanity or tar. The tripwire also watches those directories.
+ */
+const TOOL_DIRS = [...new Set([dirname(process.execPath), '/usr/local/bin', '/usr/bin', '/bin'])];
+const TOOL_ENV = { ...process.env, PATH: TOOL_DIRS.join(':') };
+const bin = (packageName: string, name: string) => resolve('node_modules', packageName, 'bin', name);
+function toolDirsChangedSince(time: bigint): string[] {
+  const out: string[] = [];
+  for (const directory of TOOL_DIRS.filter((entry) => existsSync(entry)))
+    for (const path of [directory, ...readdirSync(directory).map((name) => join(directory, name))])
+      if (lstatSync(path, { bigint: true }).ctimeNs >= time) out.push(path);
+  return out;
+}
+
+/**
+ * A process left running (a detached daemon, say) could rewrite what later steps read. Sampled between selected grader
+ * steps and at the end: any process of this user that appeared since the grader loaded and does not currently descend
+ * from it must exit within a grace period (the Sanity CLI's own telemetry worker takes a few seconds), or the attempt is
+ * UNKNOWN. This is bounded detection, not isolation. Nothing is killed, so a grader run on a shared machine cannot stop
+ * unrelated work.
+ */
+const leftovers: string[] = [];
+const BASELINE = existsSync('/proc/self/status') ? new Set(Object.keys(processTable())) : null;
+function processTable(): Record<string, { parent: string; uid: string; state: string }> {
+  const table: Record<string, { parent: string; uid: string; state: string }> = {};
+  for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name)))
+    try {
+      const status = readFileSync(`/proc/${pid}/status`, 'utf8');
+      const field = (name: string) => status.match(new RegExp(`^${name}:\\s+(\\S+)`, 'm'))?.[1] ?? '';
+      table[pid] = { parent: field('PPid'), uid: field('Uid'), state: field('State') };
+    } catch {}
+  return table;
+}
+function strays(): string[] {
+  const table = processTable();
+  const self = String(process.pid);
+  // The grader's own children have finished when this runs; a detached grandchild is re-parented away from the grader.
+  const mine = (pid: string): boolean =>
+    pid === self || (!!table[pid] && pid !== '1' && mine(table[pid]?.parent ?? ''));
+  const uid = table[self]?.uid;
+  return Object.entries(table)
+    .filter(([pid, entry]) => !BASELINE!.has(pid) && entry.uid === uid && entry.state !== 'Z' && !mine(pid))
+    .map(([pid]) => pid);
+}
+function sweep() {
+  if (!BASELINE) return void leftovers.splice(0, Infinity, 'no /proc, so leftover processes cannot be checked');
+  const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+  for (let wait = 0; wait < 100 && strays().length; wait++) pause();
+  const found = new Set<string>();
+  for (let look = 0; look < 3; look++, pause()) for (const pid of strays()) found.add(pid);
+  // Process IDs only: argument strings could carry secrets into saved output.
+  for (const pid of found) if (!leftovers.includes(pid)) leftovers.push(pid);
+}
+
+function run(cmd: string, args: string[], input = '') {
+  sweep();
   const runResult = spawnSync(cmd, args, {
     encoding: 'utf8',
+    input,
     timeout: 300000,
-    env: { ...process.env, SANITY_TELEMETRY_DISABLED: '1', CI: '1' },
+    env: { ...TOOL_ENV, SANITY_TELEMETRY_DISABLED: '1', CI: '1', JITI_FS_CACHE: 'false' },
   });
   const raw = `${runResult.stdout ?? ''}${runResult.stderr ?? ''}${runResult.error ? String(runResult.error) : ''}`;
   return {
@@ -302,14 +406,15 @@ function run(cmd: string, args: string[]) {
   };
 }
 beforeAll(() => {
-  if (!existsSync('node_modules/.bin/sanity'))
-    setup = 'the Sanity CLI is not installed: the dependencies did not install';
-  if (!existsSync('node_modules/.bin/tsc')) setup ||= 'TypeScript is not installed: the dependencies did not install';
+  if (!existsSync(bin('sanity', 'sanity'))) setup = 'the Sanity CLI is not installed: the dependencies did not install';
+  if (!existsSync(bin('typescript', 'tsc'))) setup ||= 'TypeScript is not installed: the dependencies did not install';
   if (setup) return;
-  const typeEntry = run(resolve('node_modules/.bin/tsc'), ['--noEmit', '-p', 'tsconfig.json']);
+  const since = tripwireStart();
+  const typeEntry = run(process.execPath, [bin('typescript', 'tsc'), '--noEmit', '-p', 'tsconfig.json']);
   if (typeEntry.status !== 0)
     tscError = `tsc --noEmit failed (exit ${typeEntry.status}): ${typeEntry.out.slice(0, 800)}`;
-  const currentType = run(resolve('node_modules/.bin/sanity'), [
+  const currentType = run(process.execPath, [
+    bin('sanity', 'sanity'),
     'schema',
     'extract',
     '--force',
@@ -323,17 +428,33 @@ beforeAll(() => {
   if (/__vite_ssr|__vi_/.test(checkSource)) throw new Error('Vitest rewrote the child-process source');
   writeFileSync('.eval-pt-check.mjs', checkSource);
   try {
-    const runResult = run(process.execPath, ['.eval-pt-check.mjs', '.eval-pt-input.json', '.eval-pt-result.json']);
-    result = existsSync('.eval-pt-result.json')
+    const nonce = randomBytes(16).toString('hex');
+    const runResult = run(
+      process.execPath,
+      ['.eval-pt-check.mjs', '.eval-pt-input.json', '.eval-pt-result.json'],
+      nonce,
+    );
+    const written = existsSync('.eval-pt-result.json')
       ? (JSON.parse(readFileSync('.eval-pt-result.json', 'utf8')) as Obj)
-      : {
-          status: 'unknown',
-          reason: `the rich text check wrote no result (exit ${runResult.status}): ${runResult.out.slice(-400)}`,
-        };
+      : null;
+    result =
+      written && written.nonce === nonce
+        ? written
+        : written
+          ? {
+              status: 'fail',
+              reason: 'the result file does not carry the nonce for this run, so the grader did not write it as read',
+            }
+          : {
+              status: 'unknown',
+              reason: `the rich text check wrote no result (exit ${runResult.status}): ${runResult.out.slice(-400)}`,
+            };
   } finally {
     for (const fieldEntry of ['.eval-pt-input.json', '.eval-pt-check.mjs', '.eval-pt-result.json'])
       rmSync(fieldEntry, { force: true });
   }
+  const hit = tripwireCheck(since);
+  if (hit) setup = `UNKNOWN (${hit})`;
 }, 900000);
 const errors = (candidate: Obj) =>
   (candidate?.markers ?? []).filter((memberEntry: Obj) => memberEntry.level === 'error');
