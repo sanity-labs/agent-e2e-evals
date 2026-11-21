@@ -6,9 +6,10 @@
  * offline fixture contract", not a certified live migration.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { beforeAll, expect, test } from 'vitest';
 
 type Doc = Record<string, unknown> & { _id: string; _type: string };
@@ -26,6 +27,12 @@ type Obj = Record<string, unknown>;
 // Runs one migration pass in its own process. Written into the project so bare imports resolve from its node_modules.
 async function runMigrationPass(load: (specifier: string) => Promise<any>, exportPath: string, outputPath: string) {
   const fileSystem = process.getBuiltinModule('node:fs');
+  // Read before any project code loads; stdin is then empty. Capture result-writing primitives for the same reason.
+  const nonce = fileSystem.readFileSync(0, 'utf8').trim();
+  const write = fileSystem.writeFileSync;
+  const stringify = JSON.stringify;
+  const kill = process.kill.bind(process);
+  const pid = process.pid;
   const path = process.getBuiltinModule('node:path');
   const url = process.getBuiltinModule('node:url');
   const network = process.getBuiltinModule('node:net');
@@ -49,8 +56,8 @@ async function runMigrationPass(load: (specifier: string) => Promise<any>, expor
           ' connection attempts), which the offline runner cannot serve' +
           (outcome.reason ? '; then: ' + outcome.reason : ''),
       };
-    fileSystem.writeFileSync(outputPath, JSON.stringify(outcome));
-    process.exit(0);
+    write(outputPath, stringify({ ...outcome, nonce }));
+    kill(pid, 'SIGKILL');
   };
   let resolveMigrations: any;
   let dryRun: any;
@@ -330,18 +337,117 @@ let schema: Obj[] | undefined;
 let schemaError = '';
 let typeError = '';
 
+/**
+ * Grading-integrity tripwire. Project config, schema code, migrations, and scripts run while grading and must not
+ * rewrite files that later checks trust. A ctime at or after the marker catches writes even if contents are restored;
+ * grader outputs and tool caches are exempted. Any hit makes the attempt UNKNOWN.
+ */
+const GRADER_WRITES = /^(node_modules|node_modules\/\.(vite|cache)(\/.*)?)$/;
+const CACHES = /^node_modules\/\.(vite|cache)$/;
+function tripwireStart(): bigint {
+  const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); // ctime ticks can be coarse
+  const mark = '.eval-tripwire-mark'; // same filesystem as the files it is compared with
+  pause();
+  writeFileSync(mark, '');
+  const time = lstatSync(mark, { bigint: true }).ctimeNs;
+  rmSync(mark, { force: true });
+  pause();
+  return time;
+}
+function changedSince(time: bigint, directory = '.', out: string[] = []): string[] {
+  for (const name of readdirSync(directory)) {
+    const path = directory === '.' ? name : `${directory}/${name}`;
+    // An allowed path is not reported, but a directory is still searched: node_modules itself changes, its files must not.
+    const stats = lstatSync(path, { bigint: true });
+    if (stats.ctimeNs >= time && !GRADER_WRITES.test(path)) out.push(path);
+    if (stats.isDirectory() && !stats.isSymbolicLink() && !CACHES.test(path)) changedSince(time, path, out);
+  }
+  return out;
+}
+function tripwireCheck(time: bigint): string {
+  sweep();
+  const changed = [...changedSince(time), ...toolDirsChangedSince(time)];
+  if (leftovers.length)
+    return leftovers[0]?.startsWith('no /proc')
+      ? `grading integrity: ${leftovers[0]}`
+      : `grading integrity: the verifier observed ${leftovers.length} matching process(es) still running (pid ${leftovers.slice(0, 4).join(', ')})`;
+  return changed.length
+    ? `grading integrity: the verifier observed changes to ${changed.length} file(s) while the grader ran, so its checks may have read rewritten files: ${changed.slice(0, 8).join(', ')}`
+    : '';
+}
+
+/**
+ * Grader tools run under a fixed PATH and by absolute script path, so a file added to a directory on the verifier's
+ * PATH is not run in place of node, npm, tsc, sanity or tar. The tripwire also watches those directories.
+ */
+const TOOL_DIRS = [...new Set([dirname(process.execPath), '/usr/local/bin', '/usr/bin', '/bin'])];
+const TOOL_ENV = { ...process.env, PATH: TOOL_DIRS.join(':') };
+const bin = (packageName: string, name: string) => resolve('node_modules', packageName, 'bin', name);
+function toolDirsChangedSince(time: bigint): string[] {
+  const out: string[] = [];
+  for (const directory of TOOL_DIRS.filter((entry) => existsSync(entry)))
+    for (const path of [directory, ...readdirSync(directory).map((name) => join(directory, name))])
+      if (lstatSync(path, { bigint: true }).ctimeNs >= time) out.push(path);
+  return out;
+}
+
+/**
+ * A process left running (a detached daemon, say) could rewrite what later steps read. Sampled between selected grader
+ * steps and at the end: any process of this user that appeared since the grader loaded and does not currently descend
+ * from it must exit within a grace period (the Sanity CLI's own telemetry worker takes a few seconds), or the attempt is
+ * UNKNOWN. This is bounded detection, not isolation. Nothing is killed, so a grader run on a shared machine cannot stop
+ * unrelated work.
+ */
+const leftovers: string[] = [];
+const BASELINE = existsSync('/proc/self/status') ? new Set(Object.keys(processTable())) : null;
+function processTable(): Record<string, { parent: string; uid: string; state: string }> {
+  const table: Record<string, { parent: string; uid: string; state: string }> = {};
+  for (const pid of readdirSync('/proc').filter((name) => /^\d+$/.test(name)))
+    try {
+      const status = readFileSync(`/proc/${pid}/status`, 'utf8');
+      const field = (name: string) => status.match(new RegExp(`^${name}:\\s+(\\S+)`, 'm'))?.[1] ?? '';
+      table[pid] = { parent: field('PPid'), uid: field('Uid'), state: field('State') };
+    } catch {}
+  return table;
+}
+function strays(): string[] {
+  const table = processTable();
+  const self = String(process.pid);
+  // The grader's own children have finished when this runs; a detached grandchild is re-parented away from the grader.
+  const mine = (pid: string): boolean =>
+    pid === self || (!!table[pid] && pid !== '1' && mine(table[pid]?.parent ?? ''));
+  const uid = table[self]?.uid;
+  return Object.entries(table)
+    .filter(([pid, entry]) => !BASELINE!.has(pid) && entry.uid === uid && entry.state !== 'Z' && !mine(pid))
+    .map(([pid]) => pid);
+}
+function sweep() {
+  if (!BASELINE) return void leftovers.splice(0, Infinity, 'no /proc, so leftover processes cannot be checked');
+  const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+  for (let wait = 0; wait < 100 && strays().length; wait++) pause();
+  const found = new Set<string>();
+  for (let look = 0; look < 3; look++, pause()) for (const pid of strays()) found.add(pid);
+  // Process IDs only: argument strings could carry secrets into saved output.
+  for (const pid of found) if (!leftovers.includes(pid)) leftovers.push(pid);
+}
+
 function runPass(dir: string, docs: Doc[], passNumber: number): Pass {
+  sweep();
   const ndjson = join(dir, `pass${passNumber}.ndjson`);
   writeFileSync(ndjson, docs.map((document) => JSON.stringify(document)).join('\n') + '\n');
   try {
-    execFileSync('tar', ['-cf', join(dir, `pass${passNumber}.tar`), '-C', dir, `pass${passNumber}.ndjson`]);
+    execFileSync('tar', ['-cf', join(dir, `pass${passNumber}.tar`), '-C', dir, `pass${passNumber}.ndjson`], {
+      env: TOOL_ENV,
+    });
   } catch (err) {
     return { status: 'unknown', reason: `could not write the export tar: ${(err as Error).message}` };
   }
   const out = join(dir, `pass${passNumber}.json`);
-  const env = { PATH: process.env.PATH ?? '', HOME: dir };
+  const env = { PATH: TOOL_ENV.PATH, HOME: dir, JITI_FS_CACHE: 'false' };
+  const nonce = randomBytes(16).toString('hex');
   const result = spawnSync(process.execPath, ['.eval-migration-pass.mjs', join(dir, `pass${passNumber}.tar`), out], {
     env,
+    input: nonce,
     encoding: 'utf8',
     timeout: 300_000,
   });
@@ -350,29 +456,41 @@ function runPass(dir: string, docs: Doc[], passNumber: number): Pass {
       status: 'unknown',
       reason: `pass ${passNumber} wrote no result (exit ${result.status}, signal ${result.signal}): ${(result.stderr ?? '').slice(-400)}`,
     };
-  return JSON.parse(readFileSync(out, 'utf8')) as Pass;
+  const written = JSON.parse(readFileSync(out, 'utf8')) as Pass & { nonce?: string };
+  if (written.nonce !== nonce)
+    return {
+      status: 'fail',
+      reason: 'the result file does not carry the nonce for this run, so the grader did not write it as read',
+    };
+  return written;
 }
 
 beforeAll(() => {
   const dir = mkdtempSync(join(tmpdir(), 'eval-migration-'));
-  const cli = resolve('node_modules/.bin/sanity');
-  if (!existsSync(cli)) setup = 'the Sanity CLI is not installed in the project';
+  const since = tripwireStart();
+  // Typecheck before schema extraction loads project code, using the installed compiler directly.
+  const tsc = bin('typescript', 'tsc');
+  if (!existsSync(tsc)) setup ||= 'TypeScript is not installed in the project';
   else {
-    const result = spawnSync(cli, ['schema', 'extract', '--path', join(dir, 'schema.json')], {
+    const typecheck = spawnSync(process.execPath, [tsc, '--noEmit', '-p', 'tsconfig.json'], {
       encoding: 'utf8',
       timeout: 300_000,
+      env: TOOL_ENV,
+    });
+    if (typecheck.status !== 0)
+      typeError = `tsc --noEmit failed (exit ${typecheck.status}): ${(typecheck.stdout + typecheck.stderr).slice(0, 600)}`;
+  }
+  const cli = bin('sanity', 'sanity');
+  if (!existsSync(cli)) setup = 'the Sanity CLI is not installed in the project';
+  else {
+    const result = spawnSync(process.execPath, [cli, 'schema', 'extract', '--path', join(dir, 'schema.json')], {
+      encoding: 'utf8',
+      timeout: 300_000,
+      env: { ...TOOL_ENV, JITI_FS_CACHE: 'false' },
     });
     if (result.status === 0) schema = JSON.parse(readFileSync(join(dir, 'schema.json'), 'utf8')) as Obj[];
     else
       schemaError = `sanity schema extract failed (exit ${result.status}): ${(result.stdout + result.stderr).slice(-600)}`;
-  }
-  // Typecheck directly with the installed compiler, so an edited build script cannot skip it. tsconfig.json is a protected path.
-  const tsc = resolve('node_modules/.bin/tsc');
-  if (!existsSync(tsc)) setup ||= 'TypeScript is not installed in the project';
-  else {
-    const typecheck = spawnSync(tsc, ['--noEmit', '-p', 'tsconfig.json'], { encoding: 'utf8', timeout: 300_000 });
-    if (typecheck.status !== 0)
-      typeError = `tsc --noEmit failed (exit ${typecheck.status}): ${(typecheck.stdout + typecheck.stderr).slice(0, 600)}`;
   }
   const passSource = `(${runMigrationPass.toString()})((specifier) => import(specifier), ...process.argv.slice(2));`;
   if (/__vite_ssr|__vi_/.test(passSource)) throw new Error('migration pass source contains a Vitest transform marker');
@@ -383,6 +501,8 @@ beforeAll(() => {
   } finally {
     rmSync('.eval-migration-pass.mjs', { force: true });
   }
+  const hit = tripwireCheck(since);
+  if (hit) setup = hit;
 }, 900_000);
 
 function check(pass: Pass | undefined, label: string): Doc[] {
